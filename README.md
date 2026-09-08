@@ -55,6 +55,32 @@ own message queue.
 `pause` lands at a slice boundary rather than mid-slice, so state the UI
 reads is never mid-instruction.
 
+## Components
+
+The primitives are vendored with [shadcn](https://ui.shadcn.com) on
+**Base UI**, into `src/components/ui/`. `components.json` records the
+choice (`"style": "base-nova"`), so adding another is one command:
+
+```bash
+npx shadcn@latest add dialog
+```
+
+Vendored means they are ours: edit them in place. The theme in
+`src/index.css` carries the source application's identity onto shadcn's
+tokens — JetBrains Mono, the Red Ribbon `--gero` accent, and four
+machine-state colours from Catppuccin Mocha:
+
+| Token | Means |
+|---|---|
+| `--ip` | Where execution is stopped |
+| `--breakpoint` | Where it will stop |
+| `--symbol` | What a name binds |
+| `--warning` | A warning, as against `--destructive` for an error |
+
+`--ip` rather than `--current`: Tailwind's own `current` keyword means
+`currentColor`, and shadowing it would make `text-current` mean two
+things.
+
 ## The cockpit
 
 The UI reads worker events and nothing else. It does not decode an

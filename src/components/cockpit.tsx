@@ -6,12 +6,9 @@
  */
 
 import { useEffect, useState } from "react";
+import { Pause, Play, RotateCcw, SkipForward, Wrench } from "lucide-react";
 
-import { loadSamples, type Sample } from "../samples.js";
-import { useSession } from "../state/session.js";
-import { Button, Empty, cn } from "../ui/primitives.js";
-import { addrOfLine, lineAt } from "../worker/debug.js";
-import type { SourceFile } from "../worker/protocol.js";
+import { Editor } from "@/components/editor";
 import {
   CurrentLocation,
   DiagnosticsPane,
@@ -19,8 +16,16 @@ import {
   LogPane,
   MemoryPane,
   RegisterPane,
-} from "./panes.js";
-import { Editor } from "./editor.js";
+} from "@/components/panes";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Separator } from "@/components/ui/separator";
+import { loadSamples, type Sample } from "@/samples";
+import { useSession } from "@/state/session";
+import { addrOfLine, lineAt } from "@/worker/debug";
+import type { SourceFile } from "@/worker/protocol";
 
 /** What the editor holds: a sample's files, with the edits made to
  *  them. Switching samples replaces it wholesale — the lab is a
@@ -111,9 +116,11 @@ export function Cockpit() {
 
   if (!buffer || !samples) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <Empty>Loading the toolchain…</Empty>
-      </div>
+      <Empty className="h-full">
+        <EmptyHeader>
+          <EmptyTitle>Loading the toolchain…</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
     );
   }
 
@@ -128,39 +135,61 @@ export function Cockpit() {
         currentLine={currentLine}
         breakpoints={session.breakpoints}
         debug={session.debug}
+        diagnostics={session.diagnostics}
         onChooseSample={(s) => setBuffer(asBuffer(s))}
         onOpenFile={(name) => setBuffer({ ...buffer, open: name })}
-        diagnostics={session.diagnostics}
         onEdit={edit}
         onToggleBreakpoint={toggleBreakpointAtLine}
       />
 
-      <div className="flex shrink-0 flex-wrap items-center gap-2 rounded border border-slate-800 bg-slate-900/60 px-3 py-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-3 rounded-xl bg-card px-3 py-2 ring-1 ring-foreground/10">
         <Button
-          onClick={() =>
-            session.build(buffer.files, buffer.sample.entry, buffer.sample.lang)
-          }
+          size="sm"
+          onClick={() => session.build(buffer.files, buffer.sample.entry, buffer.sample.lang)}
         >
+          <Wrench />
           Build
         </Button>
-        <Button onClick={session.run} disabled={session.phase === "running"}>Run</Button>
-        <Button onClick={session.pauseRun} disabled={session.phase !== "running"}>Pause</Button>
-        <Button onClick={() => session.step()}>Step</Button>
-        <Button variant="ghost" onClick={session.reset}>Reset</Button>
+        <ButtonGroup>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={session.run}
+            disabled={session.phase === "running"}
+          >
+            <Play />
+            Run
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={session.pauseRun}
+            disabled={session.phase !== "running"}
+          >
+            <Pause />
+            Pause
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => session.step()}>
+            <SkipForward />
+            Step
+          </Button>
+        </ButtonGroup>
+        <Button size="sm" variant="ghost" onClick={session.reset}>
+          <RotateCcw />
+          Reset
+        </Button>
+
         <div className="ml-auto flex items-center gap-3">
           {session.pause && (
-            <span
-              className={cn(
-                "rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wider",
-                session.pause.reason === "fault"
-                  ? "bg-rose-900 text-rose-200"
-                  : "bg-slate-800 text-slate-400",
-              )}
+            <Badge
+              variant={session.pause.reason === "fault" ? "destructive" : "secondary"}
+              className="text-[10px] tracking-wider uppercase"
             >
               {session.pause.reason}
               {session.pause.fault !== undefined && ` $${session.pause.fault.toString(16)}`}
-            </span>
+            </Badge>
           )}
+          <Separator orientation="vertical" className="h-4" />
           <CurrentLocation ip={currentIp} debug={session.debug} />
         </div>
       </div>
@@ -188,11 +217,11 @@ export function Cockpit() {
 
 function Failure({ title, detail }: { title: string; detail: string }) {
   return (
-    <div className="flex h-full items-center justify-center p-8">
-      <div className="max-w-md rounded border border-rose-900 bg-rose-950/40 p-4">
-        <h2 className="text-sm font-semibold text-rose-200">{title}</h2>
-        <p className="mt-2 text-xs text-rose-300/80">{detail}</p>
-      </div>
-    </div>
+    <Empty className="h-full">
+      <EmptyHeader>
+        <EmptyTitle className="text-destructive">{title}</EmptyTitle>
+        <EmptyDescription>{detail}</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   );
 }

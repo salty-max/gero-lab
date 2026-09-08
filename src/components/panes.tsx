@@ -9,9 +9,14 @@
 
 import { useState } from "react";
 
-import { Button, Empty, Hex, Pane, cn } from "../ui/primitives.js";
-import { lineAt, symbolAt, type DebugInfo } from "../worker/debug.js";
-import type { Diagnostic, Registers } from "../worker/protocol.js";
+import { Hex, Pane, PaneEmpty } from "@/components/pane";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
+import { lineAt, symbolAt, type DebugInfo } from "@/worker/debug";
+import type { Diagnostic, Registers } from "@/worker/protocol";
 
 const REGISTER_ORDER: (keyof Registers)[] = [
   "ip", "acu", "r1", "r2", "r3", "r4", "r5", "r6",
@@ -22,6 +27,11 @@ const REGISTER_ORDER: (keyof Registers)[] = [
  *  them on write — so showing them would be showing a constant. */
 const FLAGS = ["Z", "C", "V", "N", "I"] as const;
 
+/** How much one memory read fetches, and how it is laid out. Sixteen to
+ *  a row is what makes the address column readable at a glance. */
+const PEEK_BYTES = 128;
+const BYTES_PER_ROW = 16;
+
 export function RegisterPane({
   regs,
   onSetReg,
@@ -29,20 +39,41 @@ export function RegisterPane({
   regs: Registers | null;
   onSetReg: (index: number, value: number) => void;
 }) {
-  if (!regs) return <Pane title="Registers"><Empty>Build a program to see the register file.</Empty></Pane>;
+  if (!regs) {
+    return (
+      <Pane title="Registers">
+        <PaneEmpty>Build a program to see the register file.</PaneEmpty>
+      </Pane>
+    );
+  }
 
   return (
-    <Pane title="Registers">
-      <table className="w-full text-xs">
-        <tbody>
+    <Pane
+      title="Registers"
+      action={
+        <div className="flex gap-1">
+          {FLAGS.map((flag, bit) => (
+            <Badge
+              key={flag}
+              variant={regs.flg & (1 << bit) ? "default" : "secondary"}
+              className="px-1.5 py-0 font-mono text-[10px]"
+            >
+              {flag}
+            </Badge>
+          ))}
+        </div>
+      }
+    >
+      <Table className="text-xs">
+        <TableBody>
           {REGISTER_ORDER.map((name, index) => (
-            <tr key={name} className="border-b border-slate-800/60 last:border-0">
-              <th className="w-16 px-3 py-1 text-left font-mono font-normal text-slate-500">
+            <TableRow key={name}>
+              <TableCell className="w-14 py-1 font-mono text-muted-foreground">
                 {name}
-              </th>
-              <td className="px-3 py-1 text-slate-200">
-                <input
-                  className="w-20 bg-transparent font-mono tabular-nums outline-none focus:text-sky-300"
+              </TableCell>
+              <TableCell className="py-1">
+                <Input
+                  className="h-6 w-24 border-transparent bg-transparent px-1 font-mono tabular-nums shadow-none"
                   value={`$${regs[name].toString(16).toUpperCase().padStart(4, "0")}`}
                   onChange={(e) => {
                     const parsed = Number.parseInt(e.target.value.replace(/^\$/, ""), 16);
@@ -50,27 +81,14 @@ export function RegisterPane({
                   }}
                   aria-label={`register ${name}`}
                 />
-              </td>
-              <td className="px-3 py-1 text-right font-mono tabular-nums text-slate-500">
+              </TableCell>
+              <TableCell className="py-1 text-right font-mono tabular-nums text-muted-foreground">
                 {regs[name]}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
-      <div className="flex gap-2 border-t border-slate-800 px-3 py-2 text-[10px] font-mono">
-        {FLAGS.map((flag, bit) => (
-          <span
-            key={flag}
-            className={cn(
-              "rounded px-1.5 py-0.5",
-              regs.flg & (1 << bit) ? "bg-sky-900 text-sky-200" : "bg-slate-800 text-slate-600",
-            )}
-          >
-            {flag}
-          </span>
-        ))}
-      </div>
+        </TableBody>
+      </Table>
     </Pane>
   );
 }
@@ -89,7 +107,11 @@ export function DisassemblyPane({
   onToggleBreakpoint: (addr: number) => void;
 }) {
   if (!text) {
-    return <Pane title="Disassembly"><Empty>Build a program to disassemble it.</Empty></Pane>;
+    return (
+      <Pane title="Disassembly">
+        <PaneEmpty>Build a program to disassemble it.</PaneEmpty>
+      </Pane>
+    );
   }
 
   // Each line begins with its address, which is what lets a click set a
@@ -102,9 +124,9 @@ export function DisassemblyPane({
   return (
     <Pane
       title="Disassembly"
-      right={
+      action={
         debug.present ? null : (
-          <span className="text-[10px] text-amber-500/80">no debug info — addresses only</span>
+          <span className="text-[10px] text-warning">no debug info — addresses only</span>
         )
       }
     >
@@ -117,7 +139,7 @@ export function DisassemblyPane({
           return (
             <div key={i}>
               {showLabel && (
-                <div className="px-3 pt-2 text-[11px] text-emerald-400/80">{label.name}:</div>
+                <div className="px-3 pt-2 text-[11px] text-symbol">{label.name}:</div>
               )}
               <button
                 type="button"
@@ -125,14 +147,13 @@ export function DisassemblyPane({
                 onClick={() => row.addr !== null && onToggleBreakpoint(row.addr)}
                 className={cn(
                   "flex w-full items-center gap-2 px-3 py-0.5 text-left",
-                  isCurrent && "bg-sky-950/70 text-sky-200",
-                  !isCurrent && "hover:bg-slate-800/60",
+                  isCurrent ? "bg-ip/15 text-ip" : "hover:bg-muted",
                 )}
               >
                 <span
                   className={cn(
-                    "inline-block h-2 w-2 shrink-0 rounded-full",
-                    hasBp ? "bg-rose-500" : "bg-transparent",
+                    "inline-block size-2 shrink-0 rounded-full",
+                    hasBp ? "bg-breakpoint" : "bg-transparent",
                   )}
                   aria-hidden
                 />
@@ -159,44 +180,46 @@ export function MemoryPane({
 
   const request = () => {
     const addr = Number.parseInt(addrText.replace(/^\$/, ""), 16);
-    if (Number.isFinite(addr)) onPeek(addr & 0xffff, 128);
+    if (Number.isFinite(addr)) onPeek(addr & 0xffff, PEEK_BYTES);
   };
 
   return (
     <Pane
       title="Memory"
-      right={
+      action={
         <div className="flex items-center gap-1.5">
-          <input
-            className="w-20 rounded bg-slate-800 px-1.5 py-0.5 text-right font-mono text-[11px] outline-none focus:ring-1 focus:ring-sky-600"
+          <Input
+            className="h-6 w-20 px-1.5 text-right font-mono text-[11px]"
             value={addrText}
             onChange={(e) => setAddrText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && request()}
             aria-label="memory address"
           />
-          <Button variant="ghost" onClick={request}>Read</Button>
+          <Button size="xs" variant="ghost" onClick={request}>
+            Read
+          </Button>
         </div>
       }
     >
       {!memory ? (
-        <Empty>Enter an address to read 128 bytes.</Empty>
+        <PaneEmpty>Enter an address to read {PEEK_BYTES} bytes.</PaneEmpty>
       ) : (
         <div className="px-3 py-2 font-mono text-xs">
-          {Array.from({ length: Math.ceil(memory.bytes.length / 16) }, (_, row) => {
-            const base = memory.addr + row * 16;
-            const slice = memory.bytes.slice(row * 16, row * 16 + 16);
+          {Array.from({ length: Math.ceil(memory.bytes.length / BYTES_PER_ROW) }, (_, row) => {
+            const base = memory.addr + row * BYTES_PER_ROW;
+            const slice = memory.bytes.slice(row * BYTES_PER_ROW, (row + 1) * BYTES_PER_ROW);
             const label = symbolAt(debug, base);
             return (
               <div key={row} className="flex gap-3 py-0.5">
-                <span className="w-12 shrink-0 text-slate-600"><Hex value={base} /></span>
-                <span className="text-slate-300">
+                <span className="w-12 shrink-0 text-muted-foreground">
+                  <Hex value={base} />
+                </span>
+                <span>
                   {Array.from(slice)
                     .map((b) => b.toString(16).toUpperCase().padStart(2, "0"))
                     .join(" ")}
                 </span>
-                {label?.addr === base && (
-                  <span className="text-emerald-500/70">{label.name}</span>
-                )}
+                {label?.addr === base && <span className="text-symbol">{label.name}</span>}
               </div>
             );
           })}
@@ -210,14 +233,16 @@ export function LogPane({ output, onClear }: { output: string; onClear: () => vo
   return (
     <Pane
       title="Output"
-      right={<Button variant="ghost" onClick={onClear}>Clear</Button>}
+      action={
+        <Button size="xs" variant="ghost" onClick={onClear} disabled={output === ""}>
+          Clear
+        </Button>
+      }
     >
       {output ? (
-        <pre className="whitespace-pre-wrap px-3 py-2 font-mono text-xs text-slate-200">
-          {output}
-        </pre>
+        <pre className="px-3 py-2 font-mono text-xs whitespace-pre-wrap">{output}</pre>
       ) : (
-        <Empty>The program has printed nothing yet.</Empty>
+        <PaneEmpty>The program has printed nothing yet.</PaneEmpty>
       )}
     </Pane>
   );
@@ -227,39 +252,38 @@ export function DiagnosticsPane({ diagnostics }: { diagnostics: Diagnostic[] }) 
   return (
     <Pane
       title="Diagnostics"
-      right={
+      action={
         diagnostics.length > 0 ? (
-          <span className="text-[10px] text-slate-600">
+          <span className="text-[10px] text-muted-foreground">
             {diagnostics.length} {diagnostics.length === 1 ? "item" : "items"}
           </span>
         ) : null
       }
     >
       {diagnostics.length === 0 ? (
-        <Empty>No diagnostics.</Empty>
+        <PaneEmpty>No diagnostics.</PaneEmpty>
       ) : (
-        <ul className="divide-y divide-slate-800/60">
+        <ul className="divide-y">
           {diagnostics.map((d, i) => (
             <li key={i} className="px-3 py-2 text-xs">
               <div className="flex items-baseline gap-2">
-                <span
-                  className={cn(
-                    "font-mono text-[10px]",
-                    d.severity === "warning" ? "text-amber-400" : "text-rose-400",
-                  )}
-                >
-                  {d.code}
-                </span>
-                {d.file && (
-                  <span className="font-mono text-[10px] text-slate-500">
-                    {d.file}
-                    {d.line !== undefined && `:${d.line}`}
-                    {d.column !== undefined && `:${d.column}`}
+                {d.code && (
+                  <span
+                    className={cn(
+                      "font-mono text-[10px]",
+                      d.severity === "error" ? "text-destructive" : "text-warning",
+                    )}
+                  >
+                    {d.code}
                   </span>
                 )}
+                <span className="font-mono text-[10px] text-muted-foreground">
+                  {d.file}:{d.line}:{d.column}
+                </span>
               </div>
               {/* The CLI's wording, unchanged (§5). */}
-              <p className="mt-0.5 text-slate-300">{d.message}</p>
+              <p className="mt-0.5">{d.message}</p>
+              {d.note && <p className="mt-0.5 text-muted-foreground">{d.note}</p>}
             </li>
           ))}
         </ul>
@@ -274,9 +298,13 @@ export function CurrentLocation({ ip, debug }: { ip: number | null; debug: Debug
   if (ip === null) return null;
   const row = lineAt(debug, ip);
   return (
-    <span className="font-mono text-[11px] text-slate-400">
+    <span className="font-mono text-[11px] text-muted-foreground">
       <Hex value={ip} />
-      {row && <span className="ml-2 text-slate-500">{row.file}:{row.line}</span>}
+      {row && (
+        <span className="ml-2">
+          {row.file}:{row.line}
+        </span>
+      )}
     </span>
   );
 }
