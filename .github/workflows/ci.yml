@@ -34,8 +34,8 @@ jobs:
 
       - run: npm ci || npm install
 
-      - name: Place the module
-        run: GERO_WASM=.gero/zig-out/bin/gero.wasm npm run wasm
+      - name: Place the module and its samples
+        run: GERO_ROOT=.gero npm run wasm
 
       - run: npm run lint
       - run: npm run typecheck
