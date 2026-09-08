@@ -73,6 +73,8 @@ export class Engine {
   /** Set by `pause` and read at the top of the next slice — the loop
    *  never checks it mid-slice, so a slice is atomic. */
   private pauseRequested = false;
+  /** Serializes everything but `pause`; see `handle_`. */
+  private queue: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly emit: Emit,
@@ -80,7 +82,30 @@ export class Engine {
     private readonly nextTick: Yield = () => new Promise((r) => setTimeout(r, 0)),
   ) {}
 
-  async handle_(command: Command): Promise<void> {
+  /** Commands the engine runs at once, ahead of anything queued.
+   *
+   *  `pause` only sets a flag the run loop reads at its next slice
+   *  boundary, so running it immediately cannot land mid-slice — and
+   *  queueing it behind `run`, which does not resolve until the program
+   *  stops, is the one way to make it unreachable. */
+  private static readonly immediate: ReadonlySet<Command["type"]> = new Set(["pause"]);
+
+  /**
+   * Handle one command.
+   *
+   * Commands are serialized: `run` is long-lived and yields between
+   * slices, so an unserialized `step` arriving mid-run would drive the
+   * VM from two places at once. `pause` is the exception, and the
+   * reason the queue has one.
+   */
+  handle_(command: Command): Promise<void> {
+    const run = () => this.guarded(command);
+    if (Engine.immediate.has(command.type)) return run();
+    this.queue = this.queue.then(run);
+    return this.queue;
+  }
+
+  private async guarded(command: Command): Promise<void> {
     try {
       await this.dispatch(command);
     } catch (err) {
@@ -95,6 +120,7 @@ export class Engine {
     switch (command.type) {
       case "init": return this.init();
       case "build": return this.build(command);
+      case "check": return this.check(command);
       case "load": return this.load(command.image);
       case "reset": return this.reset();
       case "run": return this.run(command.sliceBudget ?? DEFAULT_SLICE_BUDGET);
@@ -148,6 +174,16 @@ export class Engine {
     this.load(r.payload);
   }
 
+  /** Diagnostics only. Deliberately touches neither the loaded image
+   *  nor the VM: the editor runs this on every edit, and a keystroke
+   *  must not disturb a paused program. */
+  private check(command: Extract<Command, { type: "check" }>): void {
+    const { mod } = this.need();
+    mod.putFiles(command.files);
+    const r = mod.check(command.entry, command.lang);
+    this.emit({ type: "checked", diagnostics: parseDiagnostics(r.diagnosticsJson) });
+  }
+
   private load(image: Uint8Array): void {
     const { mod, handle } = this.need();
     const r = mod.vmLoad(handle, image);
@@ -157,7 +193,9 @@ export class Engine {
 
   private reset(): void {
     const { mod, handle } = this.need();
-    this.pauseRequested = true;
+    // Only a run in flight has a pause to request; setting the flag
+    // with nothing running would leave it to stop the next one.
+    if (this.running) this.pauseRequested = true;
     mod.vmReset(handle);
     this.emitSnapshot();
   }
@@ -181,7 +219,6 @@ export class Engine {
     const { mod, handle } = this.need();
     if (this.running) return;
     this.running = true;
-    this.pauseRequested = false;
 
     try {
       for (;;) {
@@ -208,6 +245,10 @@ export class Engine {
       }
     } finally {
       this.running = false;
+      // Cleared when the run ends rather than when one begins: a pause
+      // that arrives while `run` is still queued belongs to that run,
+      // and clearing on entry would drop it.
+      this.pauseRequested = false;
     }
   }
 

@@ -216,4 +216,71 @@ end
     expect(of("error")).toHaveLength(1);
     expect(of("error")[0]?.command).toBe("run");
   });
+
+  it("yields between slices under a tight loop, so pause lands", async () => {
+    const events: Event[] = [];
+    let ticks = 0;
+    const engine = new Engine(
+      (e) => events.push(e),
+      () => GeroModule.instantiate(readFileSync(WASM)),
+      // The yield is where a real page services its message queue.
+      // Pausing from inside it is what a user clicking Pause does —
+      // and it goes through `handle_`, so this covers the dispatch
+      // policy that decides whether it is reachable at all.
+      async () => {
+        ticks += 1;
+        if (ticks === 3) await engine.handle_({ type: "pause" });
+      },
+    );
+    await engine.handle_({ type: "init" });
+    await engine.handle_({
+      type: "build",
+      files: [{ name: "main.gas", text: "start:\n  jmp start\n" }],
+      entry: "main.gas",
+      lang: "gas",
+    });
+
+    await engine.handle_({ type: "run", sliceBudget: 1000 });
+
+    const paused = events.filter((e) => e.type === "paused");
+    expect(paused.at(-1)).toMatchObject({ reason: "manual" });
+    // One trace per slice, not one per instruction: a program retiring
+    // thousands of instructions must not emit thousands of events.
+    expect(events.filter((e) => e.type === "trace").length).toBeLessThanOrEqual(ticks);
+  });
+
+  it("queues commands behind a run, but lets pause overtake it", async () => {
+    const events: Event[] = [];
+    const order: string[] = [];
+    let ticks = 0;
+    const engine: Engine = new Engine(
+      (e) => events.push(e),
+      () => GeroModule.instantiate(readFileSync(WASM)),
+      async () => {
+        ticks += 1;
+        if (ticks === 2) {
+          // A `step` sent mid-run must wait — driving the VM from two
+          // places at once would interleave with the loop's own slice.
+          void engine.handle_({ type: "step" }).then(() => order.push("step"));
+          void engine.handle_({ type: "pause" }).then(() => order.push("pause"));
+        }
+        // A real macrotask yield: a microtask-only one would starve
+        // the very queue the pause has to arrive through.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      },
+    );
+    await engine.handle_({ type: "init" });
+    await engine.handle_({
+      type: "build",
+      files: [{ name: "main.gas", text: "start:\n  jmp start\n" }],
+      entry: "main.gas",
+      lang: "gas",
+    });
+
+    await engine.handle_({ type: "run", sliceBudget: 100 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(order).toEqual(["pause", "step"]);
+  });
 });
+
