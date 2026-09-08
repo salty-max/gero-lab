@@ -35,6 +35,10 @@ export const StepReason = {
   notLoaded: 4,
 } as const;
 
+/** `bank` value selecting the base image rather than a bank window.
+ *  Bank 0 is a real window, so it cannot double as "no bank". */
+export const NO_BANK = 0xffff_ffff;
+
 /** The `lang` discriminant the module takes. */
 export const LangCode = { gas: 0, gr: 1 } as const;
 
@@ -62,6 +66,8 @@ interface Exports {
   gero_files_clear(): void;
   gero_compile(namePtr: number, nameLen: number): number;
   gero_assemble(namePtr: number, nameLen: number): number;
+  gero_disasm(gxPtr: number, gxLen: number, bank: number): number;
+  gero_debug_info(gxPtr: number, gxLen: number): number;
   gero_vm_create(): number;
   gero_vm_destroy(handle: number): number;
   gero_vm_load(handle: number, ptr: number, len: number): number;
@@ -184,6 +190,24 @@ export class GeroModule {
       ? this.ex.gero_compile(n.ptr, n.len)
       : this.ex.gero_assemble(n.ptr, n.len);
     return this.result(ptr);
+  }
+
+  /** Disassemble an image. Text, one instruction per line. */
+  disasm(image: Uint8Array, bank: number = NO_BANK): string {
+    const ptr = this.put(image);
+    const r = this.result(this.ex.gero_disasm(ptr, image.length, bank));
+    if (r.status !== Status.ok) throw new ModuleError(r.status, "gero_disasm");
+    return r.payload ? this.decoder.decode(r.payload) : "";
+  }
+
+  /** The `.gx` debug section as JSON: the symbol and line tables (§6).
+   *  Absent when the image carries none, which is not an error — the
+   *  panes degrade to address-level rather than failing. */
+  debugInfo(image: Uint8Array): string | null {
+    const ptr = this.put(image);
+    const r = this.result(this.ex.gero_debug_info(ptr, image.length));
+    if (r.status !== Status.ok) throw new ModuleError(r.status, "gero_debug_info");
+    return r.payload && r.payload.length > 0 ? this.decoder.decode(r.payload) : null;
   }
 
   vmCreate(): number {

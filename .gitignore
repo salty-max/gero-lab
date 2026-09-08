@@ -1,10 +1,13 @@
 node_modules/
 dist/
 *.local
+*.tsbuildinfo
 
-# The wasm module is fetched, never vendored — a checked-in copy is a
-# module that can lag the toolchain it exposes (gero-lab.md §10).
+# The module and its sample manifest are fetched, never vendored — a
+# checked-in copy is a module that can lag the toolchain it exposes and
+# a sample set that can drift from the corpus (gero-lab.md §9, §10).
 public/gero.wasm
+public/samples.json
 
 # CI's checkout of the gero repository, for building the module.
 .gero/

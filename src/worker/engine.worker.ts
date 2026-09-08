@@ -20,11 +20,11 @@ const WASM_URL = new URL("/gero.wasm", import.meta.url);
 
 const engine = new Engine(
   (event: Event) => {
-    // Transfer the byte payloads rather than copying: a `peek` of a
-    // whole bank is 16 KB per request, and the UI does not share them.
-    const transfer: Transferable[] = [];
-    if (event.type === "mem") transfer.push(event.bytes.buffer);
-    if (event.type === "built" && event.image) transfer.push(event.image.buffer);
+    // `mem` is transferred rather than copied: a `peek` of a whole bank
+    // is 16 KB per request and the engine never reads it back. The
+    // built image is copied instead — the engine goes on to disassemble
+    // and load it, and a transfer would detach it mid-build.
+    const transfer: Transferable[] = event.type === "mem" ? [event.bytes.buffer] : [];
     self.postMessage(event, transfer);
   },
   async () => {
