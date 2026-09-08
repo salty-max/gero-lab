@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The engine tests run against the real gero.wasm — a mocked VM
+      # would agree with whatever the test author believed rather than
+      # with the ISA, which is the drift gero-lab.md §11 exists to
+      # prevent.
+      - name: Check out gero and build the module
+        uses: actions/checkout@v4
+        with:
+          repository: salty-max/gero
+          path: .gero
+
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.16.0
+
+      - run: zig build wasm
+        working-directory: .gero
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci || npm install
+
+      - name: Place the module
+        run: GERO_WASM=.gero/zig-out/bin/gero.wasm npm run wasm
+
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test

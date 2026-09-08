@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.local
+
+# The wasm module is fetched, never vendored — a checked-in copy is a
+# module that can lag the toolchain it exposes (gero-lab.md §10).
+public/gero.wasm
