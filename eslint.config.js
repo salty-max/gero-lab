@@ -3,7 +3,10 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "public"] },
+  // `.gero` is a checkout of the gero repository CI makes to build
+  // the wasm module. It sits inside the workspace, so without this
+  // eslint lints gero's own scripts against this project's config.
+  { ignores: ["dist", "public", ".gero"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

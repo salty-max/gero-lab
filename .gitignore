@@ -5,3 +5,6 @@ dist/
 # The wasm module is fetched, never vendored — a checked-in copy is a
 # module that can lag the toolchain it exposes (gero-lab.md §10).
 public/gero.wasm
+
+# CI's checkout of the gero repository, for building the module.
+.gero/
