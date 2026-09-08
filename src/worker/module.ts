@@ -64,6 +64,7 @@ interface Exports {
   gero_version(): number;
   gero_file_put(namePtr: number, nameLen: number, srcPtr: number, srcLen: number): number;
   gero_files_clear(): void;
+  gero_check(namePtr: number, nameLen: number, lang: number): number;
   gero_compile(namePtr: number, nameLen: number): number;
   gero_assemble(namePtr: number, nameLen: number): number;
   gero_disasm(gxPtr: number, gxLen: number, bank: number): number;
@@ -190,6 +191,12 @@ export class GeroModule {
       ? this.ex.gero_compile(n.ptr, n.len)
       : this.ex.gero_assemble(n.ptr, n.len);
     return this.result(ptr);
+  }
+
+  /** Diagnostics for the entry, without lowering it to an image. */
+  check(entry: string, lang: keyof typeof LangCode): ModuleResult {
+    const n = this.putText(entry);
+    return this.result(this.ex.gero_check(n.ptr, n.len, LangCode[lang]));
   }
 
   /** Disassemble an image. Text, one instruction per line. */

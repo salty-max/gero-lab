@@ -37,6 +37,10 @@ const asBuffer = (sample: Sample): Buffer => ({
   open: sample.entry,
 });
 
+/** How long a buffer must sit still before it is checked. Long enough
+ *  that typing a word is one check, short enough to feel immediate. */
+const CHECK_DEBOUNCE_MS = 300;
+
 export function Cockpit() {
   const session = useSession();
   const [samples, setSamples] = useState<Sample[] | null>(null);
@@ -84,6 +88,18 @@ export function Cockpit() {
     );
   };
 
+  // Diagnostics follow the buffer rather than the last build (§5). The
+  // debounce is what keeps a held key from queueing one check per
+  // keystroke behind the run loop.
+  useEffect(() => {
+    if (!buffer) return;
+    const timer = setTimeout(
+      () => session.check(buffer.files, buffer.sample.entry, buffer.sample.lang),
+      CHECK_DEBOUNCE_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [buffer, session.check]);
+
   if (session.phase === "failed" || samplesError) {
     return (
       <Failure
@@ -114,6 +130,7 @@ export function Cockpit() {
         debug={session.debug}
         onChooseSample={(s) => setBuffer(asBuffer(s))}
         onOpenFile={(name) => setBuffer({ ...buffer, open: name })}
+        diagnostics={session.diagnostics}
         onEdit={edit}
         onToggleBreakpoint={toggleBreakpointAtLine}
       />
@@ -162,10 +179,7 @@ export function Cockpit() {
         </div>
         <div className="grid min-h-0 grid-rows-2 gap-3">
           <LogPane output={session.output} onClear={session.clearOutput} />
-          <DiagnosticsPane
-            diagnostics={session.diagnostics}
-            debugPresent={session.debug.present}
-          />
+          <DiagnosticsPane diagnostics={session.diagnostics} />
         </div>
       </div>
     </div>

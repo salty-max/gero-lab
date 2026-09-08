@@ -223,20 +223,16 @@ export function LogPane({ output, onClear }: { output: string; onClear: () => vo
   );
 }
 
-export function DiagnosticsPane({
-  diagnostics,
-  debugPresent,
-}: {
-  diagnostics: Diagnostic[];
-  debugPresent: boolean;
-}) {
+export function DiagnosticsPane({ diagnostics }: { diagnostics: Diagnostic[] }) {
   return (
     <Pane
       title="Diagnostics"
       right={
-        debugPresent ? null : (
-          <span className="text-[10px] text-slate-600">source mapping unavailable</span>
-        )
+        diagnostics.length > 0 ? (
+          <span className="text-[10px] text-slate-600">
+            {diagnostics.length} {diagnostics.length === 1 ? "item" : "items"}
+          </span>
+        ) : null
       }
     >
       {diagnostics.length === 0 ? (

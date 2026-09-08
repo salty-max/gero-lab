@@ -56,6 +56,7 @@ const EMPTY: SessionState = {
 
 export interface Session extends SessionState {
   build(files: SourceFile[], entry: string, lang: Lang): void;
+  check(files: SourceFile[], entry: string, lang: Lang): void;
   run(): void;
   pauseRun(): void;
   step(count?: number): void;
@@ -95,6 +96,8 @@ export function useSession(): Session {
               // diagnostics say why nothing changed.
               ...(event.ok ? { output: "", pause: null } : {}),
             };
+          case "checked":
+            return { ...prev, diagnostics: event.diagnostics };
           case "program":
             return {
               ...prev,
@@ -110,7 +113,12 @@ export function useSession(): Session {
               pause: { reason: event.reason, ip: event.ip, ...(event.fault ? { fault: event.fault } : {}) },
             };
           case "trace":
-            return { ...prev, phase: "running" };
+            // One per slice, and it carries nothing the cockpit shows.
+            // Returning `prev` unchanged is what keeps a spinning
+            // program from re-rendering the whole cockpit at slice
+            // rate — the back-pressure the worker provides is only half
+            // the story if the UI spends it on renders.
+            return prev.phase === "running" ? prev : { ...prev, phase: "running" };
           case "output":
             return { ...prev, output: prev.output + event.text };
           case "mem":
@@ -150,7 +158,12 @@ export function useSession(): Session {
     () => ({
       build: (files: SourceFile[], entry: string, lang: Lang) =>
         send({ type: "build", files, entry, lang }),
-      run: () => send({ type: "run" }),
+      check: (files: SourceFile[], entry: string, lang: Lang) =>
+        send({ type: "check", files, entry, lang }),
+      run: () => {
+        setState((p) => ({ ...p, phase: "running", pause: null }));
+        send({ type: "run" });
+      },
       pauseRun: () => send({ type: "pause" }),
       step: (count?: number) => send({ type: "step", ...(count ? { count } : {}) }),
       reset: () => send({ type: "reset" }),

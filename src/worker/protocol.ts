@@ -30,13 +30,24 @@ export interface SourceFile {
 }
 
 /** A diagnostic, in the shape `gero check --format=json` emits. */
+/** One diagnostic, in the shape the module emits — the same objects
+ *  `gero check --format=json` writes, so the wording, code and span are
+ *  identical in a terminal and here (§5).
+ *
+ *  `end_line` / `end_col` are present for gero-lang, whose diagnostics
+ *  carry a span; asm reports a point, and a marker for one covers the
+ *  rest of the line. */
 export interface Diagnostic {
-  code: string;
+  code?: string;
   message: string;
-  file?: string;
-  line?: number;
-  column?: number;
-  severity?: "error" | "warning";
+  file: string;
+  line: number;
+  column: number;
+  end_line?: number;
+  end_col?: number;
+  severity: "error" | "warning" | "note";
+  /** The `help` line the CLI prints under the caret, when there is one. */
+  note?: string;
 }
 
 /** The register file, in `Register` index order. */
@@ -59,6 +70,9 @@ export type Command =
   | { type: "init"; arenaBytes?: number }
   /** Assemble or compile the file set; the entry names the root. */
   | { type: "build"; files: SourceFile[]; entry: string; lang: Lang }
+  /** Diagnostics without an image — the editor's fast path (§2). Sent
+   *  on every edit, so it never touches the loaded program. */
+  | { type: "check"; files: SourceFile[]; entry: string; lang: Lang }
   /** Take `.gx` bytes directly, skipping the toolchain — how a shared
    *  image opens without recompiling. */
   | { type: "load"; image: Uint8Array }
@@ -85,6 +99,10 @@ export type Event =
    *  other event is trusted. */
   | { type: "ready"; protocol: number; version: string }
   | { type: "built"; ok: boolean; image?: Uint8Array; diagnostics: Diagnostic[] }
+  /** The answer to a `check`. Separate from `built` so the editor's
+   *  markers update on edit without the UI having to tell a build's
+   *  diagnostics apart from a check's. */
+  | { type: "checked"; diagnostics: Diagnostic[] }
   /** The disassembly and debug tables of the image just built. Sent
    *  only on success; `debugJson` is null for an image carrying no
    *  debug section, which the UI reports rather than hiding. */
