@@ -49,7 +49,7 @@ end
 describe("Engine", () => {
   it("answers `ready` with the protocol version it speaks", async () => {
     const { engine, of } = harness();
-    await engine.handle_({ type: "init" });
+    await engine.receive({ type: "init" });
 
     const ready = of("ready");
     expect(ready).toHaveLength(1);
@@ -59,8 +59,8 @@ describe("Engine", () => {
 
   it("builds and runs an assembly program to `hlt`", async () => {
     const { engine, of } = harness();
-    await engine.handle_({ type: "init" });
-    await engine.handle_({
+    await engine.receive({ type: "init" });
+    await engine.receive({
       type: "build",
       files: [{ name: "main.gas", text: HELLO_GAS }],
       entry: "main.gas",
@@ -68,7 +68,7 @@ describe("Engine", () => {
     });
 
     expect(of("built")[0]?.ok).toBe(true);
-    await engine.handle_({ type: "run" });
+    await engine.receive({ type: "run" });
 
     expect(of("paused").at(-1)?.reason).toBe("halt");
     expect(of("output").map((e) => e.text).join("")).toBe("HI");
@@ -76,8 +76,8 @@ describe("Engine", () => {
 
   it("builds and runs a gero-lang program", async () => {
     const { engine, of } = harness();
-    await engine.handle_({ type: "init" });
-    await engine.handle_({
+    await engine.receive({ type: "init" });
+    await engine.receive({
       type: "build",
       files: [{ name: "main.gr", text: COUNT_GR }],
       entry: "main.gr",
@@ -85,7 +85,7 @@ describe("Engine", () => {
     });
 
     expect(of("built")[0]?.ok).toBe(true);
-    await engine.handle_({ type: "run" });
+    await engine.receive({ type: "run" });
 
     expect(of("paused").at(-1)?.reason).toBe("halt");
     expect(of("output").map((e) => e.text).join("")).toBe("0\n1\n2\n");
@@ -93,8 +93,8 @@ describe("Engine", () => {
 
   it("reports diagnostics rather than throwing on a bad build", async () => {
     const { engine, of } = harness();
-    await engine.handle_({ type: "init" });
-    await engine.handle_({
+    await engine.receive({ type: "init" });
+    await engine.receive({
       type: "build",
       files: [{ name: "main.gas", text: "main:\n  notamnemonic\n" }],
       entry: "main.gas",
@@ -117,14 +117,14 @@ describe("Engine", () => {
 end
 `;
     const { engine, of } = harness();
-    await engine.handle_({ type: "init" });
-    await engine.handle_({
+    await engine.receive({ type: "init" });
+    await engine.receive({
       type: "build",
       files: [{ name: "main.gr", text: many }],
       entry: "main.gr",
       lang: "gr",
     });
-    await engine.handle_({ type: "run" });
+    await engine.receive({ type: "run" });
 
     expect(of("paused").at(-1)?.reason).toBe("halt");
     expect(of("output").length).toBeLessThanOrEqual(2);
@@ -139,16 +139,16 @@ end
   jmp .loop
 `;
     const { engine, of } = harness();
-    await engine.handle_({ type: "init" });
-    await engine.handle_({
+    await engine.receive({ type: "init" });
+    await engine.receive({
       type: "build",
       files: [{ name: "main.gas", text: spin }],
       entry: "main.gas",
       lang: "gas",
     });
 
-    const running = engine.handle_({ type: "run", sliceBudget: 1 });
-    await engine.handle_({ type: "pause" });
+    const running = engine.receive({ type: "run", sliceBudget: 1 });
+    await engine.receive({ type: "pause" });
     await running;
 
     expect(of("paused").at(-1)?.reason).toBe("manual");
@@ -156,8 +156,8 @@ end
 
   it("stops at a breakpoint and says why", async () => {
     const { engine, of } = harness();
-    await engine.handle_({ type: "init" });
-    await engine.handle_({
+    await engine.receive({ type: "init" });
+    await engine.receive({
       type: "build",
       files: [{ name: "main.gas", text: HELLO_GAS }],
       entry: "main.gas",
@@ -168,17 +168,17 @@ end
     // loaded program is where `main` begins.
     const regs = of("snapshot").at(-1)?.regs;
     expect(regs).toBeDefined();
-    await engine.handle_({ type: "breakpoints", addrs: [regs!.ip] });
+    await engine.receive({ type: "breakpoints", addrs: [regs!.ip] });
     expect(of("bp").at(-1)?.addrs).toEqual([regs!.ip]);
 
-    await engine.handle_({ type: "run" });
+    await engine.receive({ type: "run" });
     expect(of("paused").at(-1)?.reason).toBe("breakpoint");
   });
 
   it("steps one instruction and reports where it stopped", async () => {
     const { engine, of } = harness();
-    await engine.handle_({ type: "init" });
-    await engine.handle_({
+    await engine.receive({ type: "init" });
+    await engine.receive({
       type: "build",
       files: [{ name: "main.gas", text: HELLO_GAS }],
       entry: "main.gas",
@@ -186,7 +186,7 @@ end
     });
 
     const before = of("snapshot").at(-1)!.regs.ip;
-    await engine.handle_({ type: "step" });
+    await engine.receive({ type: "step" });
 
     const paused = of("paused").at(-1)!;
     expect(paused.steps).toBe(1);
@@ -195,23 +195,23 @@ end
 
   it("reads and writes memory through peek and poke", async () => {
     const { engine, of } = harness();
-    await engine.handle_({ type: "init" });
-    await engine.handle_({
+    await engine.receive({ type: "init" });
+    await engine.receive({
       type: "build",
       files: [{ name: "main.gas", text: HELLO_GAS }],
       entry: "main.gas",
       lang: "gas",
     });
 
-    await engine.handle_({ type: "poke", addr: 0x1200, bytes: new Uint8Array([0xde, 0xad]) });
-    await engine.handle_({ type: "peek", addr: 0x1200, len: 2 });
+    await engine.receive({ type: "poke", addr: 0x1200, bytes: new Uint8Array([0xde, 0xad]) });
+    await engine.receive({ type: "peek", addr: 0x1200, len: 2 });
 
     expect(Array.from(of("mem").at(-1)!.bytes)).toEqual([0xde, 0xad]);
   });
 
   it("reports a command sent before `init` as an error, not a crash", async () => {
     const { engine, of } = harness();
-    await engine.handle_({ type: "run" });
+    await engine.receive({ type: "run" });
 
     expect(of("error")).toHaveLength(1);
     expect(of("error")[0]?.command).toBe("run");
@@ -229,18 +229,18 @@ end
       // policy that decides whether it is reachable at all.
       async () => {
         ticks += 1;
-        if (ticks === 3) await engine.handle_({ type: "pause" });
+        if (ticks === 3) await engine.receive({ type: "pause" });
       },
     );
-    await engine.handle_({ type: "init" });
-    await engine.handle_({
+    await engine.receive({ type: "init" });
+    await engine.receive({
       type: "build",
       files: [{ name: "main.gas", text: "start:\n  jmp start\n" }],
       entry: "main.gas",
       lang: "gas",
     });
 
-    await engine.handle_({ type: "run", sliceBudget: 1000 });
+    await engine.receive({ type: "run", sliceBudget: 1000 });
 
     const paused = events.filter((e) => e.type === "paused");
     expect(paused.at(-1)).toMatchObject({ reason: "manual" });
@@ -261,23 +261,23 @@ end
         if (ticks === 2) {
           // A `step` sent mid-run must wait — driving the VM from two
           // places at once would interleave with the loop's own slice.
-          void engine.handle_({ type: "step" }).then(() => order.push("step"));
-          void engine.handle_({ type: "pause" }).then(() => order.push("pause"));
+          void engine.receive({ type: "step" }).then(() => order.push("step"));
+          void engine.receive({ type: "pause" }).then(() => order.push("pause"));
         }
         // A real macrotask yield: a microtask-only one would starve
         // the very queue the pause has to arrive through.
         await new Promise((resolve) => setTimeout(resolve, 0));
       },
     );
-    await engine.handle_({ type: "init" });
-    await engine.handle_({
+    await engine.receive({ type: "init" });
+    await engine.receive({
       type: "build",
       files: [{ name: "main.gas", text: "start:\n  jmp start\n" }],
       entry: "main.gas",
       lang: "gas",
     });
 
-    await engine.handle_({ type: "run", sliceBudget: 100 });
+    await engine.receive({ type: "run", sliceBudget: 100 });
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(order).toEqual(["pause", "step"]);

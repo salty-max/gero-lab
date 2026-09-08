@@ -248,7 +248,7 @@ function MarkedLine({ text, marks }: { text: string; marks: Mark[] }) {
     edges.add(Math.min(m.from, text.length));
     edges.add(Math.min(m.to, text.length));
   }
-  const cuts = [...edges].sort((a, b) => a - b);
+  const cuts = [...edges].toSorted((a, b) => a - b);
 
   return (
     <>

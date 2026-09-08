@@ -36,6 +36,6 @@ const engine = new Engine(
   },
 );
 
-self.onmessage = (message: MessageEvent<Command>) => {
-  void engine.handle_(message.data);
-};
+self.addEventListener("message", (message: MessageEvent<Command>) => {
+  void engine.receive(message.data);
+});

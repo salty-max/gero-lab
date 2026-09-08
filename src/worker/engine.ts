@@ -91,14 +91,14 @@ export class Engine {
   private static readonly immediate: ReadonlySet<Command["type"]> = new Set(["pause"]);
 
   /**
-   * Handle one command.
+   * Take one command from the host.
    *
    * Commands are serialized: `run` is long-lived and yields between
    * slices, so an unserialized `step` arriving mid-run would drive the
    * VM from two places at once. `pause` is the exception, and the
    * reason the queue has one.
    */
-  handle_(command: Command): Promise<void> {
+  receive(command: Command): Promise<void> {
     const run = () => this.guarded(command);
     if (Engine.immediate.has(command.type)) return run();
     this.queue = this.queue.then(run);

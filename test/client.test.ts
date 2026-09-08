@@ -47,13 +47,15 @@ describe("EngineClient", () => {
 
   it("names both versions so the message says which side is stale", async () => {
     const { worker } = fakeWorker({ type: "ready", protocol: 99, version: "0.2.0" });
-    await new EngineClient(worker).connect().catch((err: unknown) => {
-      expect(err).toBeInstanceOf(ProtocolMismatchError);
-      const e = err as ProtocolMismatchError;
-      expect(e.actual).toBe(99);
-      expect(e.expected).toBe(PROTOCOL_VERSION);
-      expect(e.message).toContain("99");
-    });
+    const error = await new EngineClient(worker)
+      .connect()
+      .then(() => null, (err: unknown) => err);
+
+    expect(error).toBeInstanceOf(ProtocolMismatchError);
+    const mismatch = error as ProtocolMismatchError;
+    expect(mismatch.actual).toBe(99);
+    expect(mismatch.expected).toBe(PROTOCOL_VERSION);
+    expect(mismatch.message).toContain("99");
   });
 
   it("connects once however many callers ask", async () => {

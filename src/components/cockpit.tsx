@@ -48,6 +48,7 @@ const CHECK_DEBOUNCE_MS = 300;
 
 export function Cockpit() {
   const session = useSession();
+  const { check } = session;
   const [samples, setSamples] = useState<Sample[] | null>(null);
   const [samplesError, setSamplesError] = useState<string | null>(null);
   const [buffer, setBuffer] = useState<Buffer | null>(null);
@@ -99,11 +100,11 @@ export function Cockpit() {
   useEffect(() => {
     if (!buffer) return;
     const timer = setTimeout(
-      () => session.check(buffer.files, buffer.sample.entry, buffer.sample.lang),
+      () => check(buffer.files, buffer.sample.entry, buffer.sample.lang),
       CHECK_DEBOUNCE_MS,
     );
     return () => clearTimeout(timer);
-  }, [buffer, session.check]);
+  }, [buffer, check]);
 
   if (session.phase === "failed" || samplesError) {
     return (

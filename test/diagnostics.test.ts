@@ -13,7 +13,7 @@ async function session() {
     () => GeroModule.instantiate(bytes),
     () => Promise.resolve(),
   );
-  await e.handle_({ type: "init" });
+  await e.receive({ type: "init" });
   return { engine: e, events };
 }
 
@@ -28,7 +28,7 @@ const diagnosticsOf = (events: Event[], type: "checked" | "built"): Diagnostic[]
 
 test("check: reports the CLI's own code, wording, and span", async () => {
   const { engine, events } = await session();
-  await engine.handle_({
+  await engine.receive({
     type: "check",
     files: [{ name: "main.gr", text: "def main()\n  print undefined_thing()\nend\n" }],
     entry: "main.gr",
@@ -50,7 +50,7 @@ test("check: reports the CLI's own code, wording, and span", async () => {
 
 test("check: a clean buffer reports nothing", async () => {
   const { engine, events } = await session();
-  await engine.handle_({
+  await engine.receive({
     type: "check",
     files: [{ name: "main.gr", text: "def main()\n  print 1\nend\n" }],
     entry: "main.gr",
@@ -61,20 +61,20 @@ test("check: a clean buffer reports nothing", async () => {
 
 test("check: leaves the loaded program alone", async () => {
   const { engine, events } = await session();
-  await engine.handle_({
+  await engine.receive({
     type: "build",
     files: [{ name: "main.gr", text: "def main()\n  print 7\nend\n" }],
     entry: "main.gr",
     lang: "gr",
   });
   // A keystroke runs a check; it must not disturb a paused program.
-  await engine.handle_({
+  await engine.receive({
     type: "check",
     files: [{ name: "main.gr", text: "def main()\n  print oops\nend\n" }],
     entry: "main.gr",
     lang: "gr",
   });
-  await engine.handle_({ type: "run" });
+  await engine.receive({ type: "run" });
 
   const output = events.filter((e) => e.type === "output").map((e) => e.text).join("");
   expect(output).toContain("7");
@@ -82,7 +82,7 @@ test("check: leaves the loaded program alone", async () => {
 
 test("build: an asm error reports a point, which a marker still covers", async () => {
   const { engine, events } = await session();
-  await engine.handle_({
+  await engine.receive({
     type: "build",
     files: [{ name: "main.gas", text: "start:\n  mov $0041, nosuchreg\n  hlt\n" }],
     entry: "main.gas",

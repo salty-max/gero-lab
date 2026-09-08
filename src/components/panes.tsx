@@ -116,9 +116,12 @@ export function DisassemblyPane({
 
   // Each line begins with its address, which is what lets a click set a
   // breakpoint without the UI decoding anything.
-  const rows = text.split("\n").filter(Boolean).map((line) => {
+  const rows = text.split("\n").filter(Boolean).map((line, i) => {
     const match = /^([0-9A-Fa-f]{4}):/.exec(line);
-    return { line, addr: match?.[1] ? Number.parseInt(match[1], 16) : null };
+    const addr = match?.[1] ? Number.parseInt(match[1], 16) : null;
+    // A line the disassembler emitted without an address — a padding
+    // comment — has only its position to be identified by.
+    return { line, addr, key: addr === null ? `line-${String(i)}` : `addr-${String(addr)}` };
   });
 
   return (
@@ -131,13 +134,13 @@ export function DisassemblyPane({
       }
     >
       <div className="font-mono text-xs">
-        {rows.map((row, i) => {
+        {rows.map((row) => {
           const isCurrent = row.addr !== null && row.addr === currentIp;
           const hasBp = row.addr !== null && breakpoints.includes(row.addr);
           const label = row.addr !== null ? symbolAt(debug, row.addr) : null;
           const showLabel = label && label.addr === row.addr;
           return (
-            <div key={i}>
+            <div key={row.key}>
               {showLabel && (
                 <div className="px-3 pt-2 text-[11px] text-symbol">{label.name}:</div>
               )}
@@ -264,8 +267,11 @@ export function DiagnosticsPane({ diagnostics }: { diagnostics: Diagnostic[] }) 
         <PaneEmpty>No diagnostics.</PaneEmpty>
       ) : (
         <ul className="divide-y">
-          {diagnostics.map((d, i) => (
-            <li key={i} className="px-3 py-2 text-xs">
+          {diagnostics.map((d) => (
+            <li
+              key={`${d.file}:${String(d.line)}:${String(d.column)}:${d.code ?? d.message}`}
+              className="px-3 py-2 text-xs"
+            >
               <div className="flex items-baseline gap-2">
                 {d.code && (
                   <span
