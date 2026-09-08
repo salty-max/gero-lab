@@ -14,7 +14,7 @@
  * service-worker cache — the classic way a deployed web app breaks
  * after a release — into a clear error rather than silent misbehaviour.
  */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 /** Which front-end a source file belongs to. Mirrors the module's `lang`. */
 export type Lang = "gas" | "gr";
@@ -85,6 +85,10 @@ export type Event =
    *  other event is trusted. */
   | { type: "ready"; protocol: number; version: string }
   | { type: "built"; ok: boolean; image?: Uint8Array; diagnostics: Diagnostic[] }
+  /** The disassembly and debug tables of the image just built. Sent
+   *  only on success; `debugJson` is null for an image carrying no
+   *  debug section, which the UI reports rather than hiding. */
+  | { type: "program"; disassembly: string; debugJson: string | null }
   | { type: "paused"; reason: PauseReason; ip: number; fault?: number; steps: number }
   | { type: "snapshot"; regs: Registers }
   | { type: "mem"; addr: number; bytes: Uint8Array }

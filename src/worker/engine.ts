@@ -131,10 +131,21 @@ export class Engine {
       ...(r.payload ? { image: r.payload } : {}),
       diagnostics,
     });
+    if (!ok || !r.payload) return;
+
+    // The panes want the disassembly and the debug tables for the image
+    // that was just built; producing them here saves the UI a round
+    // trip and keeps them in step with what is loaded.
+    this.emit({
+      type: "program",
+      disassembly: mod.disasm(r.payload),
+      debugJson: mod.debugInfo(r.payload),
+    });
+
     // A successful build loads straight away: the UI's next act is
     // always to run or step, and a build that left the VM holding the
     // previous image would run the wrong program.
-    if (ok && r.payload) this.load(r.payload);
+    this.load(r.payload);
   }
 
   private load(image: Uint8Array): void {

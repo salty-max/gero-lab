@@ -15,7 +15,10 @@ encoding than the ISA and silently stopped running current programs —
 so it cannot happen again.
 
 The module is fetched, never vendored. `public/gero.wasm` is gitignored:
-a checked-in copy is a module that can lag the toolchain it exposes.
+a checked-in copy is a module that can lag the toolchain it exposes. The
+same holds for the samples — `public/samples.json` ships beside the
+module, drawn from gero's own `examples/`, so a starter program cannot
+drift from the corpus CI proves works.
 
 ## Layers
 
@@ -52,21 +55,43 @@ own message queue.
 `pause` lands at a slice boundary rather than mid-slice, so state the UI
 reads is never mid-instruction.
 
+## The cockpit
+
+The UI reads worker events and nothing else. It does not decode an
+instruction, resolve a symbol, or compute a flag — the disassembly text,
+the debug tables, and the register file all arrive already formed, so a
+pane that shows the wrong thing is a worker bug with one place to fix
+it.
+
+| Pane | Shows | From |
+|---|---|---|
+| Editor | The sample's files, one tab each, with a gutter that turns a line into a breakpoint | the line table |
+| Registers | The 15 registers and the flag bits, editable while paused | `snapshot` |
+| Disassembly | The annotated listing, the stopped instruction, the breakpoints | `program` |
+| Memory | 128 bytes from an address, annotated with the symbols that land in them | `mem` |
+| Output | What the program printed | `output` |
+| Diagnostics | The CLI's own wording, code, and span | `built` |
+
+Source-level features need the image's debug tables. Without them the
+panes degrade to address-level ones and say so, rather than presenting
+controls that do nothing.
+
 ## Develop
 
 ```bash
 npm install
-npm run wasm          # place gero.wasm in public/
+npm run wasm          # place gero.wasm and samples.json in public/
 npm test              # the engine, against the real module
 npm run lint
 npm run typecheck
 npm run dev
 ```
 
-`npm run wasm` takes the module from a sibling gero checkout's
-`zig-out` by default — the working-tree module, which is what you want
-while developing against an unreleased toolchain. `GERO_WASM=<path>`
-and `GERO_TAG=<tag>` override that.
+`npm run wasm` takes the module and the sample manifest from a sibling
+gero checkout's `zig-out` by default — the working-tree module, which is
+what you want while developing against an unreleased toolchain.
+`GERO_ROOT=<dir>` points at another checkout, `GERO_DIST=<dir>` at a
+directory holding both assets, and `GERO_TAG=<tag>` at a gero release.
 
 ## Testing
 
