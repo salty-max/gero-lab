@@ -1,0 +1,50 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y", "import", "vitest"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error"
+  },
+  "env": { "browser": true, "es2024": true },
+  "rules": {
+    // The automatic JSX runtime — `jsx: "react-jsx"` — needs no import.
+    "react/react-in-jsx-scope": "off",
+    // `import "./index.css"` is the side effect, and there is nothing
+    // to assign it to.
+    "import/no-unassigned-import": "off",
+    // `Worker.postMessage(message, transfer)` has no `targetOrigin`;
+    // that argument belongs to `window.postMessage`, and adding it here
+    // would be passing a transfer list a string.
+    "unicorn/require-post-message-target-origin": "off",
+    // The run loop awaits a yield between slices and the asset script
+    // copies files in order. Both are causally sequential, which is
+    // what this rule assumes they are not.
+    "eslint/no-await-in-loop": "off",
+    // Vitest's `expect(actual, message)` takes the message this rule,
+    // written for Jest, refuses.
+    "vitest/valid-expect": "off"
+  },
+  "ignorePatterns": ["dist", "public", ".gero"],
+  "overrides": [
+    {
+      "files": ["scripts/**/*.mjs", "*.config.ts"],
+      "env": { "node": true, "browser": false }
+    },
+    {
+      "files": ["src/worker/engine.worker.ts"],
+      "env": { "worker": true, "browser": false }
+    },
+    {
+      // Vendored from the shadcn registry. A generic `Label` takes its
+      // `htmlFor` from the caller, and a `ButtonGroup` is exactly what
+      // `role="group"` is for — neither is visible to a rule reading
+      // the primitive on its own.
+      "files": ["src/components/ui/**"],
+      "rules": {
+        "jsx-a11y/label-has-associated-control": "off",
+        "jsx-a11y/prefer-tag-over-role": "off"
+      }
+    }
+  ]
+}

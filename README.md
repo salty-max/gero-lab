@@ -119,6 +119,16 @@ what you want while developing against an unreleased toolchain.
 `GERO_ROOT=<dir>` points at another checkout, `GERO_DIST=<dir>` at a
 directory holding both assets, and `GERO_TAG=<tag>` at a gero release.
 
+Lint is [oxlint](https://oxc.rs), configured in `.oxlintrc.json`. It
+carries no `typescript` peer of its own, which is what lets the project
+run TypeScript 7 — `typescript-eslint` peers `<6.1`, so ESLint and the
+current compiler cannot both be installed. It also runs the whole tree
+in well under a second, so `npm run lint` belongs in the edit loop
+rather than at the end of it.
+
+Type-aware rules would need `oxlint-tsgolint`; nothing here uses one
+yet, and adding it is a dependency rather than a config change.
+
 ## Testing
 
 The engine tests drive the **real** `gero.wasm`. Nothing here mocks the
