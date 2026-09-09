@@ -54,25 +54,12 @@ export function Cockpit() {
   }
 
   return (
-    <div className="flex flex-col bg-background min-h-0 h-full">
-      <div className={cn('px-6 py-4 shrink-0 bg-background', loaded && 'z-20')}>
+    <div className="relative flex flex-col bg-background min-h-0 h-full">
+      <div className="px-6 py-4 shrink-0 bg-background">
         <ToolBar />
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <main className={cn('relative px-6 pb-4')}>
-          {!loaded && (
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-6 bg-background/70 backdrop-blur-sm">
-              <div className="text-center space-y-2">
-                <h2 className="text-lg font-semibold">No program loaded</h2>
-                <p className="text-sm text-muted-foreground max-w-xs">
-                  Use the &quot;Load Program&quot; button to create or load a
-                  program. The cockpit will update once the first snapshot
-                  arrives.
-                </p>
-              </div>
-              <ProgramEditor />
-            </div>
-          )}
           <div
             className={cn(
               'flex flex-col gap-3 h-full transition-all duration-200',
@@ -124,6 +111,20 @@ export function Cockpit() {
           </div>
         </main>
       </ScrollArea>
+
+      {!loaded && (
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6 bg-background/70 backdrop-blur-sm">
+          <div className="text-center space-y-2">
+            <h2 className="text-lg font-semibold">No program loaded</h2>
+            <p className="text-sm text-muted-foreground max-w-xs">
+              Use the &quot;Load Program&quot; button to create or load a
+              program. The cockpit will update once the first snapshot
+              arrives.
+            </p>
+          </div>
+          <ProgramEditor />
+        </div>
+      )}
     </div>
   )
 }
