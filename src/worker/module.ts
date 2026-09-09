@@ -65,6 +65,7 @@ interface Exports {
   gero_file_put(namePtr: number, nameLen: number, srcPtr: number, srcLen: number): number;
   gero_files_clear(): void;
   gero_check(namePtr: number, nameLen: number, lang: number): number;
+  gero_format(srcPtr: number, srcLen: number, lang: number): number;
   gero_compile(namePtr: number, nameLen: number): number;
   gero_assemble(namePtr: number, nameLen: number): number;
   gero_disasm(gxPtr: number, gxLen: number, bank: number, showBytes: number): number;
@@ -199,6 +200,20 @@ export class GeroModule {
   check(entry: string, lang: keyof typeof LangCode): ModuleResult {
     const n = this.putText(entry);
     return this.result(this.ex.gero_check(n.ptr, n.len, LangCode[lang]));
+  }
+
+  /** Canonical formatting of one buffer, matching `gero fmt`.
+   *
+   *  Per buffer rather than per graph: an editor formats the file in
+   *  front of it, and a `use` target's formatting is its own business.
+   *  A buffer that does not parse formats to nothing rather than to a
+   *  rewrite from a partial tree, so the caller gets null and leaves it
+   *  alone. */
+  format(source: string, lang: keyof typeof LangCode): string | null {
+    const t = this.putText(source);
+    const r = this.result(this.ex.gero_format(t.ptr, t.len, LangCode[lang]));
+    if (r.status !== Status.ok) throw new ModuleError(r.status, "gero_format");
+    return r.payload && r.payload.length > 0 ? this.decoder.decode(r.payload) : null;
   }
 
   /** Disassemble an image. Text, one instruction per line.

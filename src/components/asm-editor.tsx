@@ -3,24 +3,29 @@
  *
  * Monaco is the shell the source application used and it stays. What
  * went with the port is everything underneath it: the hand-written
- * Monaco mode, which needs an ISA table this repository must not hold
+ * Monaco mode, which needed an ISA table this repository must not hold
  * (§11), and the TypeScript language server, which is the second
  * implementation §11 exists to prevent.
  *
- * Diagnostics come from the module instead — the same `gero check`
- * path, so the wording, the codes and the spans are the CLI's (§5).
- * Colour comes from the published tree-sitter grammar; until that lands
- * the buffer is uncoloured, which is what §4.3 says the fallback is.
+ * The three things underneath it now all come from outside:
+ *
+ * - **Colour** from the published tree-sitter grammars (§4.3), the same
+ *   ones the native editors use.
+ * - **Diagnostics** from `gero_check` — the CLI's own codes, wording
+ *   and spans (§5) — on every edit rather than on every build.
+ * - **Formatting** from `gero_format`, so the browser formats what
+ *   `gero fmt` formats.
  */
 
 import { useEffect, useMemo, useRef } from 'react'
 import * as monaco from 'monaco-editor'
 
-import { registerAsmLanguage } from '@/lib/asm-language'
-import { installMonacoWorkers } from '@/lib/monaco-setup'
 import { useProgram } from '@/contexts/program-context'
 import { useTheme } from '@/components/theme-provider'
-import type { Diagnostic } from '@/worker/protocol'
+import { registerAsmLanguage } from '@/lib/asm-language'
+import { highlight, type LineToken } from '@/lib/highlight'
+import { installMonacoWorkers } from '@/lib/monaco-setup'
+import type { Diagnostic, Lang } from '@/worker/protocol'
 
 type Props = {
   height?: number | string
@@ -28,7 +33,9 @@ type Props = {
   initialValue?: string
 }
 
-const LANGUAGE_ID = 'gero-asm'
+/** One Monaco language per gero language, so a `.gr` buffer is not
+ *  configured as assembly. */
+const LANGUAGE_ID: Record<Lang, string> = { gas: 'gero-asm', gr: 'gero-lang' }
 
 const MONACO_THEMES: Record<string, string> = {
   dmg: 'gero-dmg',
@@ -36,6 +43,11 @@ const MONACO_THEMES: Record<string, string> = {
   matrix: 'gero-matrix',
   dark: 'gero-mocha',
 }
+
+/** How long a buffer sits still before it is re-coloured and
+ *  re-checked. Long enough that typing a word is one pass, short enough
+ *  to feel immediate. */
+const IDLE_MS = 250
 
 /** A module diagnostic as a Monaco marker. Asm reports a point rather
  *  than a span, so a marker for one covers the rest of the line. */
@@ -56,6 +68,57 @@ function toMarker(d: Diagnostic): monaco.editor.IMarkerData {
   }
 }
 
+interface TokenState extends monaco.languages.IState {
+  line: number
+}
+
+/**
+ * Ask Monaco to tokenize the buffer again.
+ *
+ * Nothing in the public surface says "the colours moved" — a tokens
+ * provider is assumed to be a pure function of the line, and this one
+ * reads a map the parser fills in asynchronously. Re-setting the same
+ * language is a no-op, so this reaches for the model's own reset.
+ */
+function retokenize(model: monaco.editor.ITextModel): void {
+  const internal = model as unknown as {
+    tokenization?: { resetTokenization?: () => void }
+  }
+  internal.tokenization?.resetTokenization?.()
+}
+
+const stateAt = (line: number): TokenState => ({
+  line,
+  clone: () => stateAt(line),
+  equals: (other) => (other as TokenState).line === line,
+})
+
+/**
+ * Register both languages once for the page.
+ *
+ * The tokens provider reads the map the tree-sitter pass fills in.
+ * Monaco tokenizes one line at a time and does not say which, so the
+ * line number rides in the tokenizer state — the contract's own
+ * mechanism for carrying something between lines.
+ */
+function registerLanguages(tokensOf: (lang: Lang) => Map<number, LineToken[]>) {
+  for (const lang of ['gas', 'gr'] as const) {
+    const id = LANGUAGE_ID[lang]
+    if (monaco.languages.getLanguages().some((l) => l.id === id)) continue
+    monaco.languages.register({ id })
+    registerAsmLanguage(id)
+    monaco.languages.setTokensProvider(id, {
+      getInitialState: () => stateAt(0),
+      tokenize: (_line, state) => ({
+        tokens: tokensOf(lang).get((state as TokenState).line) ?? [
+          { startIndex: 0, scopes: '' },
+        ],
+        endState: stateAt((state as TokenState).line + 1),
+      }),
+    })
+  }
+}
+
 export function AsmEditor({
   height = 260,
   className = '',
@@ -63,37 +126,65 @@ export function AsmEditor({
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const program = useProgram()
-  // One model per file, which is what Monaco expects and what a
-  // multi-file program needs: switching files switches models rather
-  // than rewriting one buffer's contents underneath the editor.
+  const { theme } = useTheme()
+  const modelRef = useRef<monaco.editor.ITextModel | null>(null)
+  const suppressSetRef = useRef(false)
+  /** The colours of the last parse, per language, read by the tokens
+   *  provider Monaco calls back into. */
+  const tokens = useRef<Record<Lang, Map<number, LineToken[]>>>({
+    gas: new Map(),
+    gr: new Map(),
+  })
+
   const openName = program.openName
+  const lang = program.lang
   const text = program.getSource()
+  const languageId = LANGUAGE_ID[lang]
   const uri = useMemo(
     () => monaco.Uri.parse(`inmemory://gero/${openName}`),
     [openName]
   )
-  const { theme } = useTheme()
-  const modelRef = useRef<monaco.editor.ITextModel | null>(null)
-  const suppressSetRef = useRef(false)
+
+  // Formatting is the module's, so Monaco's own format command and any
+  // control that asks for it reach the same place.
+  const { format, getSource } = program
+  useEffect(() => {
+    const registrations = (['gas', 'gr'] as const).map((l) =>
+      monaco.languages.registerDocumentFormattingEditProvider(LANGUAGE_ID[l], {
+        provideDocumentFormattingEdits: async (model) => {
+          const changed = await format()
+          // A buffer that does not parse formats to nothing, and is
+          // left as it is rather than rewritten from a partial tree.
+          if (!changed) return []
+          return [{ range: model.getFullModelRange(), text: getSource() }]
+        },
+      })
+    )
+    return () => {
+      for (const r of registrations) r.dispose()
+    }
+  }, [format, getSource])
 
   useEffect(() => {
     installMonacoWorkers()
     if (!containerRef.current) return
 
-    monaco.languages.register({ id: LANGUAGE_ID })
-    registerAsmLanguage(LANGUAGE_ID)
+    registerLanguages((l) => tokens.current[l])
 
     // Reuse an existing model so edits survive the sheet closing.
     const existing = monaco.editor.getModel(uri)
     const seed = text || initialValue
-    const model = existing ?? monaco.editor.createModel(seed, LANGUAGE_ID, uri)
+    const model = existing ?? monaco.editor.createModel(seed, languageId, uri)
     modelRef.current = model
-    if (existing && seed !== model.getValue()) {
-      suppressSetRef.current = true
-      try {
-        model.setValue(seed)
-      } finally {
-        suppressSetRef.current = false
+    if (existing) {
+      monaco.editor.setModelLanguage(existing, languageId)
+      if (seed !== existing.getValue()) {
+        suppressSetRef.current = true
+        try {
+          existing.setValue(seed)
+        } finally {
+          suppressSetRef.current = false
+        }
       }
     }
 
@@ -104,16 +195,13 @@ export function AsmEditor({
       theme: MONACO_THEMES[theme] ?? 'gero-latte',
       fontSize: 16,
       lineHeight: 24,
-      fontFamily: "'JetBrains Mono Variable', 'JetBrains Mono', monospace",
+      fontFamily: "'JetBrains Mono', monospace",
       wordWrap: 'wordWrapColumn',
       wordWrapColumn: 80,
       wrappingIndent: 'same',
       rulers: [80],
     })
 
-    // Deliberately no write-back of the seed: the model was seeded from
-    // the program, and pushing it back would overwrite a restored
-    // working set with this editor's placeholder if it mounted first.
     const sub = model.onDidChangeContent(() => {
       if (suppressSetRef.current) return
       program.setSource(model.getValue())
@@ -125,21 +213,35 @@ export function AsmEditor({
       // The model is kept so content survives a sheet toggle.
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uri, initialValue, theme])
+  }, [uri, languageId, initialValue, theme, program.setSource])
 
-  // The build's diagnostics become the editor's markers, so a squiggle
-  // and the diagnostics pane always say the same thing.
+  // Colour and diagnostics both follow the buffer, on the same idle.
+  const { check } = program
   useEffect(() => {
     const model = modelRef.current
     if (!model) return
-    const mine = (program.lastBuild?.diagnostics ?? []).filter(
-      (d) => d.file === program.openName
-    )
-    monaco.editor.setModelMarkers(model, 'gero', mine.map(toMarker))
-  }, [program.lastBuild, program.openName])
+    let live = true
+    const timer = setTimeout(() => {
+      void highlight(text, lang).then((lines) => {
+        if (!live) return
+        tokens.current[lang] = lines
+        retokenize(model)
+      })
+      void check().then((found) => {
+        if (!live) return
+        monaco.editor.setModelMarkers(
+          model,
+          'gero',
+          found.filter((d) => d.file === openName).map(toMarker)
+        )
+      })
+    }, IDLE_MS)
+    return () => {
+      live = false
+      clearTimeout(timer)
+    }
+  }, [text, lang, openName, check])
 
-  // The program's text is the source of truth; the model follows it.
   useEffect(() => {
     const m = modelRef.current
     if (!m) return
@@ -152,7 +254,6 @@ export function AsmEditor({
         suppressSetRef.current = false
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, initialValue])
 
   return (

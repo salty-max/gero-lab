@@ -30,6 +30,40 @@ const ASSETS = [
   { name: "samples.json", built: "zig-out/samples/samples.json" },
 ];
 
+/**
+ * The grammars the editor colours with (gero-lab.md §4.3).
+ *
+ * The same tree-sitter grammars the native editors use, pinned to the
+ * tags that carry a browser artifact — earlier tags carry the grammar
+ * but no `.wasm`. `highlights.scm` is the lab's theme mapping too, so
+ * it comes from the same tag rather than from a copy kept here.
+ */
+const GRAMMARS = [
+  { repo: "tree-sitter-gero-asm", tag: "v0.3.1", wasm: "tree-sitter-gero_asm.wasm" },
+  { repo: "tree-sitter-gero-lang", tag: "v0.1.1", wasm: "tree-sitter-gero_lang.wasm" },
+];
+
+const grammarUrls = ({ repo, tag, wasm }) => [
+  {
+    name: wasm,
+    url: `https://github.com/salty-max/${repo}/releases/download/${tag}/${wasm}`,
+  },
+  {
+    name: `${wasm.replace(/\.wasm$/, "")}.highlights.scm`,
+    url: `https://raw.githubusercontent.com/salty-max/${repo}/${tag}/queries/highlights.scm`,
+  },
+];
+
+async function fetchGrammars() {
+  for (const grammar of GRAMMARS) {
+    for (const { name, url } of grammarUrls(grammar)) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`${url} returned ${String(response.status)}`);
+      await writeFile(join(publicDir, name), Buffer.from(await response.arrayBuffer()));
+    }
+  }
+}
+
 const releaseUrl = (tag, name) =>
   `https://github.com/salty-max/gero/releases/download/${tag}/${name}`;
 
@@ -38,6 +72,8 @@ const geroRoot = () => resolve(root, process.env.GERO_ROOT ?? "../gero");
 
 async function main() {
   await mkdir(publicDir, { recursive: true });
+
+  await fetchGrammars();
 
   const dist = process.env.GERO_DIST;
   if (dist) {
@@ -74,7 +110,9 @@ async function main() {
 }
 
 function report(how) {
+  const grammars = GRAMMARS.map((g) => g.wasm).join(", ");
   process.stdout.write(`${ASSETS.map((a) => a.name).join(", ")} → public/ (${how})\n`);
+  process.stdout.write(`${grammars} → public/ (pinned grammar releases)\n`);
 }
 
 main().catch((err) => {

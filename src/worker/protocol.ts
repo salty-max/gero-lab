@@ -80,6 +80,8 @@ export type Command =
   /** Diagnostics without an image — the editor's fast path (§2). Sent
    *  on every edit, so it never touches the loaded program. */
   | { type: "check"; files: SourceFile[]; entry: string; lang: Lang }
+  /** Canonical formatting of one buffer, matching `gero fmt`. */
+  | { type: "format"; source: string; lang: Lang; requestId: number }
   /** Take `.gx` bytes directly, skipping the toolchain — how a shared
    *  image opens without recompiling. */
   | { type: "load"; image: Uint8Array }
@@ -119,6 +121,10 @@ export type Event =
    *  markers update on edit without the UI having to tell a build's
    *  diagnostics apart from a check's. */
   | { type: "checked"; diagnostics: Diagnostic[] }
+  /** The answer to a `format`. `text` is null for a buffer that does
+   *  not parse, which is left alone rather than rewritten from a
+   *  partial tree. */
+  | { type: "formatted"; text: string | null; requestId: number }
   /** The disassembly and debug tables of the image just built. Sent
    *  only on success; `debugJson` is null for an image carrying no
    *  debug section, which the UI reports rather than hiding. */

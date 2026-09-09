@@ -225,6 +225,48 @@ export function useVMService() {
     [],
   );
 
+  /** Diagnostics for the buffer as it stands, without building it.
+   *
+   *  The editor's fast path: it runs on every edit and touches neither
+   *  the loaded image nor the VM, so a keystroke cannot disturb a
+   *  paused program. */
+  const check = useCallback(
+    (files: SourceFile[], entry: string, lang: Lang) =>
+      new Promise<Diagnostic[]>((resolve, reject) => {
+        const engine = client.current;
+        if (!engine) {
+          reject(new Error("the engine is not connected"));
+          return;
+        }
+        const off = engine.on("checked", (event) => {
+          off();
+          resolve(event.diagnostics);
+        });
+        engine.send({ type: "check", files, entry, lang });
+      }),
+    [],
+  );
+
+  /** Canonical formatting of one buffer. Null when it does not parse. */
+  const format = useCallback(
+    (source: string, lang: Lang) =>
+      new Promise<string | null>((resolve, reject) => {
+        const engine = client.current;
+        if (!engine) {
+          reject(new Error("the engine is not connected"));
+          return;
+        }
+        const requestId = ++peekId.current;
+        const off = engine.on("formatted", (event) => {
+          if (event.requestId !== requestId) return;
+          off();
+          resolve(event.text);
+        });
+        engine.send({ type: "format", source, lang, requestId });
+      }),
+    [],
+  );
+
   /** Take a built image straight into the VM. Building is the program
    *  context's job; this is the half that runs one. */
   const load = useCallback((image: Uint8Array) => {
@@ -353,6 +395,8 @@ export function useVMService() {
     running,
     snap,
     build,
+    check,
+    format,
     lastFaultRef,
     on,
     load,

@@ -96,6 +96,8 @@ export class Engine {
     "peek",
     "sram",
     "breakpoints",
+    "check",
+    "format",
   ]);
 
   /**
@@ -129,6 +131,7 @@ export class Engine {
       case "init": return this.init();
       case "build": return this.build(command);
       case "check": return this.check(command);
+      case "format": return this.format(command);
       case "load": return this.load(command.image);
       case "reset": return this.reset();
       case "run": return this.run(command.sliceBudget ?? DEFAULT_SLICE_BUDGET, command.stepDelayMs ?? 0);
@@ -193,6 +196,18 @@ export class Engine {
     mod.putFiles(command.files);
     const r = mod.check(command.entry, command.lang);
     this.emit({ type: "checked", diagnostics: parseDiagnostics(r.diagnosticsJson) });
+  }
+
+  /** Format one buffer. Touches neither the file set nor the VM: an
+   *  editor formats while a program is paused, and neither should
+   *  move. */
+  private format(command: Extract<Command, { type: "format" }>): void {
+    const { mod } = this.need();
+    this.emit({
+      type: "formatted",
+      text: mod.format(command.source, command.lang),
+      requestId: command.requestId,
+    });
   }
 
   private load(image: Uint8Array): void {

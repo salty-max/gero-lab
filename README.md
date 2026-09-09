@@ -81,6 +81,26 @@ machine-state colours from Catppuccin Mocha:
 `currentColor`, and shadowing it would make `text-current` mean two
 things.
 
+## The editor
+
+Three things under the editor come from outside it, and none is written
+here:
+
+| | From | Why not local |
+|---|---|---|
+| Colour | The published tree-sitter grammars, through `web-tree-sitter` (§4.3) | A hand-written Monaco mode is a second grammar, and it drifts. This one would also need an ISA table §11 forbids. |
+| Diagnostics | `gero_check`, on every edit | Same wording, codes and spans as `gero check`, from the same writer |
+| Formatting | `gero_format` | The browser formats what `gero fmt` formats |
+
+`npm run wasm` fetches each grammar's `.wasm` and its
+`queries/highlights.scm` from a pinned tag — the query file is the lab's
+theme mapping too, so an editor and the lab colour the same token the
+same way by construction rather than by two tables agreeing. A language
+with no grammar renders as plain text, which is §4.3's only fallback.
+
+A buffer that does not parse formats to nothing and is left alone,
+rather than rewritten from a partial tree.
+
 ## The cockpit
 
 The UI reads worker events and nothing else. It does not decode an

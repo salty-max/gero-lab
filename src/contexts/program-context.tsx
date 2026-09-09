@@ -52,6 +52,13 @@ export type ProgramApi = {
   setProgram(files: SourceFile[], entryName: string, lang: Lang): void;
 
   build(): Promise<ProgramBuild>;
+  /** Diagnostics for the buffers as they stand, without building. */
+  check(): Promise<Diagnostic[]>;
+  /** The diagnostics of the last check or build, whichever ran last. */
+  diagnostics: Diagnostic[];
+  /** Format the open buffer in place. A buffer that does not parse is
+   *  left alone. */
+  format(): Promise<boolean>;
   lastBuild: ProgramBuild | null;
   building: boolean;
   /** The CPU address the image's first byte sits at. The base image is
@@ -79,6 +86,7 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
   const [sourceVersion, setSourceVersion] = useState(0);
   const [lastBuild, setLastBuild] = useState<ProgramBuild | null>(null);
   const [entryAddress, setEntryAddress] = useState<number | null>(null);
+  const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
   const [building, setBuilding] = useState(false);
   const persistence = useMemo(() => new Persistence(browserStore()), []);
   /** Set once the restore has run, so the first render does not save an
@@ -169,6 +177,7 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
         debug: result.debugJson ? parseDebugInfo(result.debugJson) : NO_DEBUG_INFO,
       };
       setLastBuild(out);
+      setDiagnostics(out.diagnostics);
       // The first line the disassembler prints with an entry marker is
       // where this image begins; the module put it there.
       const marked = /^([0-9A-Fa-f]{4}):.*; entry point/m.exec(out.disassembly);
@@ -183,7 +192,21 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
     }
   }, [buildInWorker, files, entryName, lang, persistence, vm]);
 
-  const { setReg } = vm;
+  const { check: checkInWorker, format: formatInWorker, setReg } = vm;
+
+  const check = useCallback(async () => {
+    const found = await checkInWorker(files, entryName, lang);
+    setDiagnostics(found);
+    return found;
+  }, [checkInWorker, files, entryName, lang]);
+
+  const format = useCallback(async () => {
+    const text = await formatInWorker(getSource(), lang);
+    if (text === null) return false;
+    setSource(text);
+    return true;
+  }, [formatInWorker, getSource, setSource, lang]);
+
   const setEntry = useCallback(
     (addr: number) => {
       setReg("ip", addr & 0xffff);
@@ -203,6 +226,9 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
       openName,
       setProgram,
       build,
+      check,
+      diagnostics,
+      format,
       lastBuild,
       building,
       programBase: 0,
@@ -220,6 +246,9 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
       openName,
       setProgram,
       build,
+      check,
+      diagnostics,
+      format,
       lastBuild,
       building,
       vm.snap?.ip,
