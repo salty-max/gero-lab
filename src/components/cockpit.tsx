@@ -2,7 +2,7 @@ import { useProgram } from '@/contexts/program-context'
 import { useVM } from '@/contexts/vm-context'
 import { RegistersPane } from './panes/register-pane'
 import { MemoryPane } from './panes/memory-pane'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { u16 } from '@/lib/format'
 import { LogPane } from './panes/log-pane'
 import { useVMLog } from '@/hooks/use-vm-log'
@@ -17,7 +17,6 @@ import { Loader2Icon } from 'lucide-react'
 export function Cockpit() {
   const vm = useVM()
   const program = useProgram()
-  const [breakpoints, setBreakpoints] = useState<number[]>([])
   const entry = program.entryAddress
   /** Where the user jumped, and which program they jumped in. A jump
    *  made against an older image is not carried into the next one. */
@@ -33,12 +32,6 @@ export function Cockpit() {
     { includeTick: false, tickSample: 64, max: 1000 },
     vm.ready
   )
-
-  // Sync breakpoints to VM
-  const { setBreakpoints: syncBreakpoints } = vm
-  useEffect(() => {
-    syncBreakpoints(breakpoints)
-  }, [syncBreakpoints, breakpoints])
 
   // Determine whether a program is considered "loaded".
   // We rely on the presence of an initial snapshot; prior to the first
@@ -84,14 +77,8 @@ export function Cockpit() {
               >
                 <StackPane />
                 <AssemblyPane
-                  breakpoints={breakpoints}
-                  onToggleBreakpoint={(addr) => {
-                    setBreakpoints((bps) =>
-                      bps.includes(addr)
-                        ? bps.filter((b) => b !== addr)
-                        : [...bps, addr].toSorted((a, b) => a - b)
-                    )
-                  }}
+                  breakpoints={vm.breakpoints}
+                  onToggleBreakpoint={vm.toggleBreakpoint}
                 />
               </div>
             </div>

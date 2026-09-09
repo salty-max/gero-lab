@@ -46,13 +46,18 @@ function SheetContent({
   className,
   children,
   side = 'right',
+  overlay = true,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: 'top' | 'right' | 'bottom' | 'left'
+  /** Dim and block the page behind the sheet. A sheet that is meant to
+   *  be used alongside the page rather than instead of it turns this
+   *  off, together with `modal={false}` on the root. */
+  overlay?: boolean
 }) {
   return (
     <SheetPortal>
-      <SheetOverlay />
+      {overlay && <SheetOverlay />}
       <SheetPrimitive.Content
         data-slot="sheet-content"
         className={cn(

@@ -71,6 +71,9 @@ export type ProgramApi = {
   /** The address the last build's image starts executing at, fixed
    *  until the next build. Null before there is one. */
   entryAddress: number | null;
+  /** The symbol and line tables of the loaded image (§6). Empty when
+   *  the image carries no debug section, which is not an error. */
+  debug: DebugInfo;
   /** Start the next run somewhere else. `ip` is a register, and the
    *  module lets a host write it. */
   setEntry(addr: number): void;
@@ -248,6 +251,7 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
       format,
       lastBuild,
       building,
+      debug: lastBuild?.debug ?? NO_DEBUG_INFO,
       programBase: 0,
       entry: vm.snap?.ip ?? 0,
       entryAddress,

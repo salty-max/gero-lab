@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { AsmEditor } from './asm-editor'
 import { useProgram } from '@/contexts/program-context'
+import { useVM } from '@/contexts/vm-context'
+import { lineAt } from '@/worker/debug'
+import { fmt16 } from '@/lib/format'
 import {
   Sheet,
   SheetContent,
@@ -24,6 +27,37 @@ type ProgramEditorProps = {
   label?: string
 }
 
+/**
+ * Where the program is stopped, in source terms (§6).
+ *
+ * Says which file as well as which line, because a marked line in the
+ * open buffer is only the whole story for a single-file program — and
+ * it names the address when no line owns it, so an image without a
+ * debug section reads as lacking one rather than as broken.
+ */
+function SourcePosition() {
+  const vm = useVM()
+  const { debug, openName } = useProgram()
+  const ip = vm.snap?.ip
+  if (ip === undefined) return null
+
+  const row = lineAt(debug, ip)
+  if (!row) {
+    return (
+      <span className="text-xs text-muted-foreground">
+        at {fmt16(ip)}
+        {debug.present ? ' — no source line' : ' — no debug information'}
+      </span>
+    )
+  }
+  return (
+    <span className="text-xs text-muted-foreground">
+      at <span className="text-gero">{row.file}:{String(row.line)}</span>
+      {row.file === openName ? '' : ' — not the open file'}
+    </span>
+  )
+}
+
 export function ProgramEditor({ label }: ProgramEditorProps) {
   const [open, setOpen] = useState(false)
   const program = useProgram()
@@ -39,7 +73,7 @@ export function ProgramEditor({ label }: ProgramEditorProps) {
   }, [])
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={setOpen} modal={false}>
       <SheetTrigger asChild>
         <Button variant="outline">
           <CodeIcon />
@@ -48,14 +82,22 @@ export function ProgramEditor({ label }: ProgramEditorProps) {
       </SheetTrigger>
       <SheetContent
         side="left"
+        overlay={false}
+        // Source-level stepping is the editor and the toolbar used
+        // together: the run controls have to stay live and clicking one
+        // must not dismiss the source it is stepping through. Escape
+        // and the close button remain.
+        onInteractOutside={(e) => {
+          e.preventDefault()
+        }}
         className="w-1/2 h-full flex flex-col gap-4 bg-background"
       >
         <div className="px-4 pt-4">
           <SheetHeader>
             <SheetTitle>Program Editor</SheetTitle>
             <SheetDescription>
-              Write your assembly program here. The editor supports syntax
-              highlighting, code completion, and error reporting.
+              Write your program here. Errors are reported as you type, and
+              the gutter sets a breakpoint on the line you click.
             </SheetDescription>
           </SheetHeader>
         </div>
@@ -98,6 +140,7 @@ export function ProgramEditor({ label }: ProgramEditorProps) {
           >
             {program.building ? 'Building…' : 'Assemble & Load'}
           </Button>
+          <SourcePosition />
         </div>
         <div className="flex-1 min-h-0 pr-6 pt-4 pb-6">
           {open && (

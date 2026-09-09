@@ -344,3 +344,33 @@
     opacity: 0.55;
   }
 }
+
+/* Debugger marks in the editor's gutter and body (gero-lab.md §6).
+   Monaco applies these by class name, so they live here rather than in
+   the theme definitions, which only colour tokens. */
+.gero-breakpoint-glyph::before {
+  content: '';
+  display: block;
+  width: 0.6rem;
+  height: 0.6rem;
+  margin: 0.45rem 0 0 0.25rem;
+  border-radius: 9999px;
+  background: var(--gero);
+}
+
+.gero-breakpoint-line {
+  background: color-mix(in oklab, var(--gero) 18%, transparent);
+}
+
+.gero-current-glyph::before {
+  content: '▸';
+  display: block;
+  margin-left: 0.15rem;
+  color: var(--gero);
+  font-weight: 700;
+}
+
+.gero-current-line {
+  background: color-mix(in oklab, var(--gero) 32%, transparent);
+  box-shadow: inset 2px 0 0 var(--gero);
+}

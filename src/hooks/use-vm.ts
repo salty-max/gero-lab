@@ -55,6 +55,7 @@ export function useVMService() {
   const [ready, setReady] = useState(false);
   const [running, setRunning] = useState(false);
   const [snap, setSnap] = useState<Snapshot | null>(null);
+  const [breakpointList, setBreakpointList] = useState<number[]>([]);
   const lastFaultRef = useRef<Fault | null>(null);
   const listeners = useRef(new Map<Ev["t"], Set<EvHandler>>());
   const client = useRef<EngineClient | null>(null);
@@ -65,7 +66,13 @@ export function useVMService() {
    *  toolbar's slider starts. The source application's control, and the
    *  module honours it directly. */
   const stepDelay = useRef(DEFAULT_STEP_DELAY_MS);
+  /** The set the worker has confirmed, which is what a change is
+   *  reported against. */
   const breakpoints = useRef<number[]>([]);
+  /** The set that has been asked for. A toggle flips this rather than
+   *  the confirmed one, so two clicks in one frame do not both toggle
+   *  from the same starting set. */
+  const wantedBreakpoints = useRef<number[]>([]);
   /** Numbers a peek's answer back to its request. */
   const peekId = useRef(0);
   /** The last register file seen, for the events the worker reports as
@@ -138,6 +145,8 @@ export function useVMService() {
         case "bp": {
           const before = breakpoints.current;
           breakpoints.current = event.addrs;
+          wantedBreakpoints.current = event.addrs;
+          setBreakpointList(event.addrs);
           const add = event.addrs.filter((a) => !before.includes(a));
           const remove = before.filter((a) => !event.addrs.includes(a));
           if (add.length > 0 || remove.length > 0) {
@@ -314,10 +323,20 @@ export function useVMService() {
   }, []);
 
   const setBreakpoints = useCallback((addrs: number[]) => {
+    wantedBreakpoints.current = addrs;
     client.current?.send({ type: "breakpoints", addrs });
   }, []);
 
-  const getBreakpoints = useCallback(() => breakpoints.current, []);
+  /** Flip one address in the set, wherever it was named from — a
+   *  disassembly row or a source line reach the same set. */
+  const toggleBreakpoint = useCallback((addr: number) => {
+    const current = wantedBreakpoints.current;
+    const next = current.includes(addr)
+      ? current.filter((a) => a !== addr)
+      : [...current, addr].toSorted((a, b) => a - b);
+    wantedBreakpoints.current = next;
+    client.current?.send({ type: "breakpoints", addrs: next });
+  }, []);
 
   const setReg = useCallback((reg: RegName, value: number) => {
     const index = REGISTER_NAMES.indexOf(reg);
@@ -410,6 +429,7 @@ export function useVMService() {
     ready,
     running,
     snap,
+    breakpoints: breakpointList,
     build,
     check,
     format,
@@ -421,7 +441,7 @@ export function useVMService() {
     step,
     reset,
     setBreakpoints,
-    getBreakpoints,
+    toggleBreakpoint,
     setReg,
     setStepDelay,
     getStepDelay,

@@ -1,4 +1,5 @@
 import { useVM } from '@/contexts/vm-context'
+import { useProgram } from '@/contexts/program-context'
 import { fmt16, fmt8, u16 } from '@/lib/format'
 import { useEffect, useMemo, useState } from 'react'
 import { SectionCard } from '../section-card'
@@ -24,6 +25,7 @@ export function MemoryPane({
   onJump,
 }: MemoryPaneProps) {
   const vm = useVM()
+  const { symbols } = useProgram().debug
   const { peek, memSize: readMemSize, on: onVmEvent } = vm
   const ip = u16(vm.snap?.ip ?? 0)
   const [buf, setBuf] = useState<Uint8Array | null>(null)
@@ -82,6 +84,18 @@ export function MemoryPane({
     return list
   }, [buf, base, memSize])
 
+  /** In address order, so a row's names read top to bottom. */
+  const sortedSymbols = useMemo(
+    () => symbols.toSorted((a, b) => a.addr - b.addr),
+    [symbols]
+  )
+
+  /** The symbols starting in one row, so a window of hex says what it
+   *  holds (§6). By range rather than by an aligned key: Jump @ takes
+   *  any address, and rows then start wherever the user asked. */
+  const namesIn = (rowAddr: number) =>
+    sortedSymbols.filter((s) => s.addr >= rowAddr && s.addr < rowAddr + 16)
+
   const isHighlight = (addr: number) =>
     highlightAddrs?.some((a) => u16(a) === u16(addr))
 
@@ -139,58 +153,66 @@ export function MemoryPane({
               bytes: Array.from({ length: 16 }, () => 0),
             }))
         ).map((r) => (
-          <div
-            key={r.addr}
-            className="grid grid-cols-[5rem_1fr] py-1 border-b border-zinc-900 text-sm"
-          >
-            <div className="opacity-60">{fmt16(r.addr)}</div>
-            <div className="flex gap-3">
-              <div className="grid grid-cols-16 gap-1">
-                {r.bytes.map((b, i) => {
-                  const a = u16(r.addr + i)
-                  const oob =
-                    rows.length > 0 && memSize ? r.addr + i >= memSize : false
-                  const display =
-                    rows.length > 0 && !oob ? fmt8(b, true) : '__'
-                  return (
-                    <span
-                      key={`hex-${String(a)}`}
-                      className={cn(
-                        'shrink-0 w-6 inline-block text-center font-mono',
-                        oob || rows.length === 0 ? 'text-muted' : '',
-                        isHighlight(a) ? 'bg-gero/50 rounded' : ''
-                      )}
-                    >
-                      {display}
-                    </span>
-                  )
-                })}
+          <div key={r.addr}>
+            {namesIn(r.addr).map((s) => (
+              <div
+                key={s.addr}
+                className="grid grid-cols-[5rem_1fr] pt-2 text-xs"
+              >
+                <span className="opacity-40">{fmt16(s.addr)}</span>
+                <span className="text-gero">{s.name}:</span>
               </div>
-              <Separator orientation="vertical" />
-              <div className="flex gap-0.5">
-                {r.bytes.map((b, i) => {
-                  const oob =
-                    rows.length > 0 && memSize ? r.addr + i >= memSize : false
-                  if (oob || rows.length === 0) {
+            ))}
+            <div className="grid grid-cols-[5rem_1fr] py-1 border-b border-zinc-900 text-sm">
+              <div className="opacity-60">{fmt16(r.addr)}</div>
+              <div className="flex gap-3">
+                <div className="grid grid-cols-16 gap-1">
+                  {r.bytes.map((b, i) => {
+                    const a = u16(r.addr + i)
+                    const oob =
+                      rows.length > 0 && memSize ? r.addr + i >= memSize : false
+                    const display =
+                      rows.length > 0 && !oob ? fmt8(b, true) : '__'
                     return (
-                      <span key={`b-${String(r.addr + i)}`} className="shrink-0 text-center text-muted">
-                        .
+                      <span
+                        key={`hex-${String(a)}`}
+                        className={cn(
+                          'shrink-0 w-6 inline-block text-center font-mono',
+                          oob || rows.length === 0 ? 'text-muted' : '',
+                          isHighlight(a) ? 'bg-gero/50 rounded' : ''
+                        )}
+                      >
+                        {display}
                       </span>
                     )
-                  }
-                  const c = isAscii(b) ? String.fromCharCode(b) : '.'
-                  return (
-                    <span
-                      key={`b-${String(r.addr + i)}`}
-                      className={cn(
-                        'shrink-0 text-center',
-                        isAscii(b) ? 'text-foreground' : 'text-foreground/50'
-                      )}
-                    >
-                      {c}
-                    </span>
-                  )
-                })}
+                  })}
+                </div>
+                <Separator orientation="vertical" />
+                <div className="flex gap-0.5">
+                  {r.bytes.map((b, i) => {
+                    const oob =
+                      rows.length > 0 && memSize ? r.addr + i >= memSize : false
+                    if (oob || rows.length === 0) {
+                      return (
+                        <span key={`b-${String(r.addr + i)}`} className="shrink-0 text-center text-muted">
+                          .
+                        </span>
+                      )
+                    }
+                    const c = isAscii(b) ? String.fromCharCode(b) : '.'
+                    return (
+                      <span
+                        key={`b-${String(r.addr + i)}`}
+                        className={cn(
+                          'shrink-0 text-center',
+                          isAscii(b) ? 'text-foreground' : 'text-foreground/50'
+                        )}
+                      >
+                        {c}
+                      </span>
+                    )
+                  })}
+                </div>
               </div>
             </div>
           </div>

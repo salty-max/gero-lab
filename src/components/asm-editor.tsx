@@ -15,16 +15,23 @@
  *   and spans (§5) — on every edit rather than on every build.
  * - **Formatting** from `gero_format`, so the browser formats what
  *   `gero fmt` formats.
+ * - **Position** from the image's line table (§6), which is what turns
+ *   the buffer into a debugger view: the line being executed is marked
+ *   in it, and a breakpoint is set by clicking the line rather than
+ *   hunting for its address in the disassembly.
  */
 
 import { useEffect, useMemo, useRef } from 'react'
 import * as monaco from 'monaco-editor'
+import { toast } from 'sonner'
 
 import { useProgram } from '@/contexts/program-context'
+import { useVM } from '@/contexts/vm-context'
 import { useTheme } from '@/components/theme-provider'
 import { registerAsmLanguage } from '@/lib/asm-language'
 import { highlight, type LineToken } from '@/lib/highlight'
 import { installMonacoWorkers } from '@/lib/monaco-setup'
+import { addrOfLine, lineAt } from '@/worker/debug'
 import type { Diagnostic, Lang } from '@/worker/protocol'
 
 type Props = {
@@ -138,18 +145,49 @@ export function AsmEditor({
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const program = useProgram()
+  const vm = useVM()
   const { theme } = useTheme()
   const modelRef = useRef<monaco.editor.ITextModel | null>(null)
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
+  const marksRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(
+    null
+  )
   const suppressSetRef = useRef(false)
 
   const openName = program.openName
   const lang = program.lang
   const text = program.getSource()
+  const debug = program.debug
   const languageId = LANGUAGE_ID[lang]
   const uri = useMemo(
     () => monaco.Uri.parse(`inmemory://gero/${openName}`),
     [openName]
   )
+
+  /**
+   * Toggle the breakpoint a source line stands for.
+   *
+   * Read through a ref because the editor is created once per opening
+   * and the tables it consults are replaced by every build.
+   */
+  const toggleAtLine = useRef<(line: number) => void>(() => undefined)
+  const { toggleBreakpoint } = vm
+  useEffect(() => {
+    toggleAtLine.current = (line) => {
+      if (!debug.present) {
+        toast.info('this image carries no debug information', {
+          description: 'set breakpoints on the disassembly instead',
+        })
+        return
+      }
+      const addr = addrOfLine(debug, openName, line)
+      if (addr === null) {
+        toast.info(`line ${String(line)} produced no code`)
+        return
+      }
+      toggleBreakpoint(addr)
+    }
+  }, [debug, openName, toggleBreakpoint])
 
   // Formatting is the module's, so Monaco's own format command and any
   // control that asks for it reach the same place.
@@ -198,6 +236,8 @@ export function AsmEditor({
       model,
       minimap: { enabled: false },
       automaticLayout: true,
+      // Where a breakpoint is set, and where the current line is marked.
+      glyphMargin: true,
       theme: MONACO_THEMES[theme] ?? 'gero-latte',
       fontSize: 16,
       lineHeight: 24,
@@ -208,18 +248,89 @@ export function AsmEditor({
       rulers: [80],
     })
 
+    editorRef.current = editor
+    marksRef.current = editor.createDecorationsCollection()
+
     const sub = model.onDidChangeContent(() => {
       if (suppressSetRef.current) return
       program.setSource(model.getValue())
     })
 
+    const clicks = editor.onMouseDown((e) => {
+      if (e.target.type !== monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) {
+        return
+      }
+      const line = e.target.position?.lineNumber
+      if (line !== undefined) toggleAtLine.current(line)
+    })
+
     return () => {
       editor.dispose()
       sub.dispose()
+      clicks.dispose()
+      editorRef.current = null
+      marksRef.current = null
       // The model is kept so content survives a sheet toggle.
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uri, languageId, initialValue, theme, program.setSource])
+
+  /**
+   * The line being executed, and the lines holding breakpoints.
+   *
+   * Both come from the line table, and both are filtered to the open
+   * file — a program built from several files has addresses in all of
+   * them, and line 12 of one is not line 12 of another.
+   */
+  const ip = vm.snap?.ip ?? null
+  const breakpoints = vm.breakpoints
+  /** The line last scrolled to, so a breakpoint change does not move a
+   *  view the user is reading. */
+  const revealed = useRef<number | null>(null)
+  useEffect(() => {
+    const marks = marksRef.current
+    const model = modelRef.current
+    if (!marks || !model) return
+
+    const lineOf = (addr: number): number | null => {
+      const row = lineAt(debug, addr)
+      return row && row.file === openName ? row.line : null
+    }
+    const inRange = (line: number) => line >= 1 && line <= model.getLineCount()
+
+    const decorations: monaco.editor.IModelDeltaDecoration[] = []
+    for (const addr of breakpoints) {
+      const line = lineOf(addr)
+      if (line === null || !inRange(line)) continue
+      decorations.push({
+        range: new monaco.Range(line, 1, line, 1),
+        options: {
+          isWholeLine: true,
+          className: 'gero-breakpoint-line',
+          glyphMarginClassName: 'gero-breakpoint-glyph',
+          glyphMarginHoverMessage: { value: `breakpoint at $${addr.toString(16).padStart(4, '0').toUpperCase()}` },
+        },
+      })
+    }
+
+    const current = ip === null ? null : lineOf(ip)
+    if (current !== null && inRange(current)) {
+      decorations.push({
+        range: new monaco.Range(current, 1, current, 1),
+        options: {
+          isWholeLine: true,
+          className: 'gero-current-line',
+          glyphMarginClassName: 'gero-current-glyph',
+        },
+      })
+      if (revealed.current !== current) {
+        editorRef.current?.revealLineInCenterIfOutsideViewport(current)
+        revealed.current = current
+      }
+    }
+
+    marks.set(decorations)
+  }, [debug, openName, breakpoints, ip])
 
   // Colour and diagnostics both follow the buffer, on the same idle.
   const { check } = program
