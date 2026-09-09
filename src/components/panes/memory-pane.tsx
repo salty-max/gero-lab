@@ -50,7 +50,9 @@ export function MemoryPane({
       const overlaps = !(eEnd < start || eStart > end)
       if (!overlaps) return
       vm.peek(base, length)
-        .then((d) => { setBuf(d) })
+        .then((d) => {
+          setBuf(d)
+        })
         .catch(() => {
           setBuf(null)
         })

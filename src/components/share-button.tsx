@@ -12,11 +12,11 @@
  * the user cannot share.
  */
 
+import type React from "react";
 import { useRef, useState } from "react";
 import { Check, Download, Link2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useProgram } from "@/contexts/program-context";
 import { cn } from "@/lib/utils";
 import { ShareTooLongError, encodeShareUrl, type SharedProgram } from "@/share";
@@ -87,18 +87,18 @@ export function ShareButton() {
 
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <Button size="sm" variant="ghost" onClick={() => void share()}>
+      <Button size="sm" variant="outline" onClick={() => void share()}>
         {status.kind === "ready" && status.copied ? <Check /> : <Link2 />}
         {status.kind === "ready" && status.copied ? "Copied" : "Share"}
       </Button>
 
       {status.kind === "ready" && (
-        <Input
+        <input
           ref={field}
           readOnly
           value={status.url}
-          onFocus={(e) => e.currentTarget.select()}
-          className="h-6 w-56 font-mono text-[11px]"
+          onFocus={(e: React.FocusEvent<HTMLInputElement>) => e.currentTarget.select()}
+          className="h-8 w-56 rounded-md border bg-background px-2 font-mono text-[11px]"
           aria-label="shareable link"
         />
       )}
@@ -115,7 +115,7 @@ export function ShareButton() {
       )}
 
       {status.kind === "too-long" && (
-        <Button size="xs" variant="outline" onClick={download}>
+        <Button size="sm" variant="outline" onClick={download}>
           <Download />
           Download
         </Button>

@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { u16, fmt16 } from '@/lib/format'
 import {
   PlayIcon,
@@ -14,11 +13,12 @@ import { Separator } from './ui/separator'
 import { Slider } from './ui/slider'
 import { useProgram } from '@/contexts/program-context'
 import { useVM } from '@/contexts/vm-context'
+import { useState } from 'react'
 
 export function ToolBar() {
   const program = useProgram()
   const vm = useVM()
-  const [delay, setDelay] = useState(0)
+  const [delay, setDelay] = useState(500)
   const entryHex = fmt16(u16(program.entry), true)
 
   return (
@@ -71,8 +71,9 @@ export function ToolBar() {
           <Button
             variant="outline"
             onClick={() => {
-              // The image is still loaded; reset boots it again.
               vm.reset()
+              // Reload last program (if any) at previous base and entry
+              // The image is still loaded; reset boots it again.
             }}
             disabled={!vm.ready && vm.running}
           >

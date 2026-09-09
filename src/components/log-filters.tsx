@@ -38,12 +38,16 @@ export function LogFilters({ filters, setFilters }: Props) {
   return (
     <DropdownMenu>
       <Tooltip>
-        <TooltipTrigger render={<DropdownMenuTrigger render={<IconButton
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <IconButton
               asChild
               variant="outline"
               label="Filter log entries"
               icon={FilterIcon}
-            />} />} />
+            />
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
         <TooltipContent>Filter log entries</TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="end" className="w-48">

@@ -31,7 +31,7 @@ export function ProgramEditor({ label }: ProgramEditorProps) {
   const [editorKey, setEditorKey] = useState(0) // to force remount editor
   const [samples, setSamples] = useState<Sample[]>([])
 
-  // The set ships beside the module and is fetched, not vendored (§9).
+  // Drawn from gero's examples and published beside the module (§9).
   useEffect(() => {
     loadSamples()
       .then(setSamples)
@@ -40,10 +40,12 @@ export function ProgramEditor({ label }: ProgramEditorProps) {
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger render={<Button variant="outline">
+      <SheetTrigger asChild>
+        <Button variant="outline">
           <CodeIcon />
           {label ?? 'Load Program'}
-        </Button>} />
+        </Button>
+      </SheetTrigger>
       <SheetContent
         side="left"
         className="w-1/2 h-full flex flex-col gap-4 bg-background"
@@ -62,9 +64,8 @@ export function ProgramEditor({ label }: ProgramEditorProps) {
             <Select
               value={selected}
               onValueChange={(v) => {
-                const name = String(v ?? '')
-                setSelected(name)
-                const s = samples.find((x) => x.name === name)
+                setSelected(v)
+                const s = samples.find((x) => x.name === v)
                 if (s) {
                   program.setProgram(s.files, s.entry, s.lang)
                   setEditorKey((k) => k + 1)
@@ -88,8 +89,8 @@ export function ProgramEditor({ label }: ProgramEditorProps) {
             disabled={program.building}
             onClick={() => {
               // A successful build loads itself in the worker, so the
-              // sheet closes on a clean one and stays open on errors —
-              // which the diagnostics pane is showing.
+              // drawer closes on a clean one and stays open on errors,
+              // which the editor's markers are showing.
               void program.build().then((res) => {
                 if (res.image.length > 0) setOpen(false)
               })

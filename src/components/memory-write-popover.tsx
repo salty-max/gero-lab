@@ -84,10 +84,12 @@ export function MemoryWritePopover() {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={<Button variant="outline">
+      <PopoverTrigger asChild>
+        <Button variant="outline">
           <MemoryStickIcon />
           Write Memory
-        </Button>} />
+        </Button>
+      </PopoverTrigger>
       <PopoverContent className="w-[420px]">
         <div className="flex flex-col gap-3">
           {entries.map((row, idx) => (

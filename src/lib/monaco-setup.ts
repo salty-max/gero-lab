@@ -1,5 +1,3 @@
-// Monaco 0.56 maps `./*` onto `esm/vs/*.js`, so the deep path the
-// source application imported no longer resolves.
 import EditorWorker from 'monaco-editor/editor/editor.worker.js?worker'
 import type * as monacoEditor from 'monaco-editor' // for Environment type
 

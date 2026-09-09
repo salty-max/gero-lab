@@ -17,12 +17,16 @@ export function ModeToggle() {
   return (
     <DropdownMenu>
       <Tooltip>
-        <TooltipTrigger render={<DropdownMenuTrigger render={<IconButton
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <IconButton
               asChild
               label="Select theme"
               icon={PaletteIcon}
               variant="outline"
-            />} />} />
+            />
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
         <TooltipContent>Select theme</TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="end">

@@ -1,11 +1,10 @@
 import * as React from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Button } from './button'
+import { Button, type ButtonProps } from './button'
 import { Tooltip, TooltipContent, TooltipTrigger } from './tooltip'
 
-type ButtonProps = React.ComponentProps<typeof Button>
-
-export interface IconButtonProps extends Omit<ButtonProps, 'children'> {
+export interface IconButtonProps
+  extends Omit<ButtonProps, 'children' | 'asChild'> {
   label: string
   icon: LucideIcon
   asChild?: boolean
@@ -30,7 +29,7 @@ export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(
 
     return (
       <Tooltip>
-        <TooltipTrigger render={button} />
+        <TooltipTrigger asChild>{button}</TooltipTrigger>
         <TooltipContent>{label}</TooltipContent>
       </Tooltip>
     )

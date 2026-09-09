@@ -38,7 +38,9 @@ export function StackPane({ highlightAddrs }: StackPaneProps) {
     let off = false
     vm.peek(base, WINDOW_LEN)
       .then((d) => {
-        if (!off) setBuf(d)
+        if (!off) {
+          setBuf(d)
+        }
       })
       .catch(() => {
         if (!off) {

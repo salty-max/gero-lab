@@ -71,8 +71,6 @@ function RegCell({ name, value, onEdit }: RegCellProps) {
     >
       <div className="text-xs opacity-60">{name}</div>
       {!editing ? (
-        // A real button: the cell opens an editor, so it takes a click
-        // and the keyboard the same way, without a role standing in.
         <button
           type="button"
           className="w-full text-left"

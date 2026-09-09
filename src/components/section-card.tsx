@@ -34,12 +34,14 @@ export function SectionCard({
             <CardTitle className="text-gero">{title}</CardTitle>
             {info && (
               <Tooltip>
-                <TooltipTrigger render={<span
-                    aria-label={`About ${title}`}
+                <TooltipTrigger asChild>
+                  <span
+                      aria-label={`About ${title}`}
                     className="inline-flex items-center text-muted-foreground hover:text-foreground cursor-help"
                   >
                     <InfoIcon className="size-4" />
-                  </span>} />
+                  </span>
+                </TooltipTrigger>
                 <TooltipContent>{info}</TooltipContent>
               </Tooltip>
             )}

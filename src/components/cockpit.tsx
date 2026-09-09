@@ -1,10 +1,7 @@
 import { useVM } from '@/contexts/vm-context'
 import { RegistersPane } from './panes/register-pane'
 import { MemoryPane } from './panes/memory-pane'
-import { useEffect, useMemo, useState } from 'react'
-
-import { useProgram } from '@/contexts/program-context'
-import { Persistence, browserStore } from '@/state/storage'
+import { useEffect, useState } from 'react'
 import { u16 } from '@/lib/format'
 import { LogPane } from './panes/log-pane'
 import { useVMLog } from '@/hooks/use-vm-log'
@@ -18,25 +15,7 @@ import { Loader2Icon } from 'lucide-react'
 
 export function Cockpit() {
   const vm = useVM()
-  const program = useProgram()
-  const persistence = useMemo(() => new Persistence(browserStore()), [])
-  // Breakpoints are session state: local to this browser, restored on
-  // load, and never part of a shared link (§7).
-  const [breakpoints, setBreakpoints] = useState<number[]>(
-    () => persistence.loadSession().breakpoints
-  )
-  useEffect(() => {
-    persistence.saveSession({ breakpoints })
-  }, [breakpoints, persistence])
-
-  // A program writes its banks as it runs, so they are read back
-  // wherever it stops and kept under the program's own identity.
-  useEffect(() => {
-    if (!program.entryName) return
-    void vm.readSram().then((bytes) => {
-      if (bytes.length > 0) persistence.saveSram(program.entryName, bytes)
-    })
-  }, [vm.snap, vm, program.entryName, persistence])
+  const [breakpoints, setBreakpoints] = useState<number[]>([])
   const [memBase, setMemBase] = useState(0x0000)
 
   const log = useVMLog(

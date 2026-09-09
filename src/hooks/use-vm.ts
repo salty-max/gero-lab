@@ -40,6 +40,9 @@ export interface BuildResult {
 
 type EvHandler = (ev: Ev) => void;
 
+/** Where the toolbar's delay slider sits before it is touched. */
+export const DEFAULT_STEP_DELAY_MS = 500;
+
 const snapshotOf = (regs: Registers): Snapshot => ({
   regs,
   ip: regs.ip,
@@ -57,9 +60,10 @@ export function useVMService() {
   /** Lets the commands below log alongside the worker's own events. */
   const emitRef = useRef<((ev: Ev) => void) | null>(null);
   const sliceBudget = useRef<number>(DEFAULT_SLICE_BUDGET);
-  /** How long the run loop waits between slices. The source
-   *  application's control, and the module honours it directly. */
-  const stepDelay = useRef(0);
+  /** How long the run loop waits between slices, matching where the
+   *  toolbar's slider starts. The source application's control, and the
+   *  module honours it directly. */
+  const stepDelay = useRef(DEFAULT_STEP_DELAY_MS);
   const breakpoints = useRef<number[]>([]);
   /** The last register file seen, for the events the worker reports as
    *  a value rather than as a change. */

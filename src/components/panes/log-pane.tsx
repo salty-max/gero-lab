@@ -78,11 +78,12 @@ export function LogPane({
     else doScroll()
   }
 
-  // The console follows its own tail: on mount, and whenever a line
-  // arrives.
   useEffect(() => {
     scrollToBottom()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    scrollToBottom()
   }, [entries.length])
 
   return (
@@ -113,12 +114,16 @@ export function LogPane({
             />
             <Sheet modal={false}>
               <Tooltip>
-                <TooltipTrigger render={<SheetTrigger render={<IconButton
+                <TooltipTrigger asChild>
+                  <SheetTrigger asChild>
+                    <IconButton
                       asChild
                       variant="outline"
                       label="Expand logs"
                       icon={Maximize2Icon}
-                    />} />} />
+                    />
+                  </SheetTrigger>
+                </TooltipTrigger>
                 <TooltipContent>Expand logs</TooltipContent>
               </Tooltip>
               <SheetContent side="right">
@@ -189,8 +194,7 @@ function LogRow({ entry }: LogRowProps) {
 
   const color = KIND_COLOR[entry.kind] ?? 'text-zinc-300'
 
-  const renderDetails = (logEntry: LogEntry) => {
-    const e = logEntry
+  const renderDetails = (e: LogEntry) => {
     switch (e.kind) {
       case 'paused': {
         const { reason, ip } = e.details
@@ -305,7 +309,7 @@ function LogRow({ entry }: LogRowProps) {
       }
       case 'output':
         // What the program itself printed. Set apart from the lab's own
-        // lines so a program printing `[error]` still reads as output.
+        // lines, so a program printing `[error]` still reads as output.
         return (
           <span className="font-mono whitespace-pre-wrap text-foreground">
             {e.details.text.replace(/\n+$/, '')}
