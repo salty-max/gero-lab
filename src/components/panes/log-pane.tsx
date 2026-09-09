@@ -307,6 +307,26 @@ function LogRow({ entry }: LogRowProps) {
           </div>
         )
       }
+      case 'diagnostic': {
+        const { severity, code, where, message, note } = e.details
+        return (
+          <div className="flex flex-wrap items-baseline gap-2 text-[11px]">
+            {code && (
+              <span
+                className={cn(
+                  'font-mono',
+                  severity === 'error' ? 'text-gero' : 'text-muted-foreground'
+                )}
+              >
+                {code}
+              </span>
+            )}
+            <span className="font-mono opacity-60">{where}</span>
+            <span>{message}</span>
+            {note && <span className="opacity-60">{note}</span>}
+          </div>
+        )
+      }
       case 'output':
         // What the program itself printed. Set apart from the lab's own
         // lines, so a program printing `[error]` still reads as output.

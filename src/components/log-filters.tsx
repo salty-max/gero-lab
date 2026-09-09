@@ -33,6 +33,7 @@ export function LogFilters({ filters, setFilters }: Props) {
     ['load', 'load'],
     ['output', 'program output'],
     ['error', 'errors'],
+    ['diagnostic', 'diagnostics'],
   ]
 
   return (

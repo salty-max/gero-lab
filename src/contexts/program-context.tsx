@@ -21,6 +21,8 @@ import {
   type ReactNode,
 } from "react";
 
+import { toast } from "sonner";
+
 import { useVM } from "./vm-context";
 import { decodeShareUrl } from "@/share";
 import { Persistence, browserStore } from "@/state/storage";
@@ -79,7 +81,10 @@ const ProgramContext = createContext<ProgramApi | null>(null);
 export function ProgramProvider({ children }: { children: ReactNode }) {
   const vm = useVM();
   const { build: buildInWorker } = vm;
-  const [files, setFiles] = useState<SourceFile[]>([]);
+  /** An empty buffer to type into. Without one there is no file for
+   *  `setSource` to write to, and a build fails looking for an include
+   *  that was never there. */
+  const [files, setFiles] = useState<SourceFile[]>([{ name: "main.gas", text: "" }]);
   const [entryName, setEntryName] = useState("main.gas");
   const [lang, setLang] = useState<Lang>("gas");
   const [openName, setOpenName] = useState("main.gas");
@@ -178,6 +183,18 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
       };
       setLastBuild(out);
       setDiagnostics(out.diagnostics);
+      // A build that produced nothing has to say so where the user is
+      // looking; the console carries the detail.
+      const errors = out.diagnostics.filter((d) => d.severity === "error");
+      if (out.image.length === 0) {
+        toast.error(
+          errors.length > 0
+            ? `${String(errors.length)} error${errors.length === 1 ? "" : "s"}: ${errors[0]!.message}`
+            : "the program did not build",
+        );
+      } else if (errors.length > 0) {
+        toast.warning(`built with ${String(errors.length)} reported`);
+      }
       // The first line the disassembler prints with an entry marker is
       // where this image begins; the module put it there.
       const marked = /^([0-9A-Fa-f]{4}):.*; entry point/m.exec(out.disassembly);

@@ -29,6 +29,16 @@ export type LogEntry =
   | BaseEntry<'tick'>
   | BaseEntry<'output', { text: string }>
   | BaseEntry<'error', { msg: string }>
+  | BaseEntry<
+      'diagnostic',
+      {
+        severity: 'error' | 'warning' | 'note'
+        code?: string
+        where: string
+        message: string
+        note?: string
+      }
+    >
 
 const short = (s: string, n = 120) => (s.length > n ? s.slice(0, n) + '...' : s)
 
@@ -41,6 +51,7 @@ const short = (s: string, n = 120) => (s.length > n ? s.slice(0, n) + '...' : s)
  * broken around.
  */
 const CLOSES_OUTPUT = new Set<LogKind>([
+  'diagnostic',
   'ready',
   'run',
   'load',
@@ -80,6 +91,7 @@ const defaultFilters: Filters = {
   load: true,
   output: true,
   error: true,
+  diagnostic: true,
 }
 
 export function useVMLog(
@@ -272,6 +284,25 @@ export function useVMLog(
           kind: 'error',
           summary: short(e.msg),
           details: { msg: e.msg },
+        })
+      })
+    )
+
+    // What a build reported, in the CLI's own words.
+    unsub.push(
+      on('diagnostic', (e) => {
+        push({
+          id: ++counter.current,
+          t: Date.now(),
+          kind: 'diagnostic',
+          summary: short(`${e.code ? e.code + ': ' : ''}${e.message}`),
+          details: {
+            severity: e.severity,
+            ...(e.code === undefined ? {} : { code: e.code }),
+            where: `${e.file}:${String(e.line)}:${String(e.column)}`,
+            message: e.message,
+            ...(e.note === undefined ? {} : { note: e.note }),
+          },
         })
       })
     )

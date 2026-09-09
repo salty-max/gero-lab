@@ -48,3 +48,13 @@ export type Ev =
   | { t: 'load'; start: number; size: number; entry: number }
   | { t: 'irq'; vector: number; ip: number }
   | { t: 'im'; from: number; to: number }
+  | {
+      t: 'diagnostic'
+      severity: 'error' | 'warning' | 'note'
+      code?: string
+      file: string
+      line: number
+      column: number
+      message: string
+      note?: string
+    }

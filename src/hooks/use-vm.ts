@@ -200,6 +200,22 @@ export function useVMService() {
         let built: Extract<Event, { type: "built" }> | null = null;
         const offBuilt = engine.on("built", (event) => {
           built = event;
+          // A build is something the user asked for, so what it reports
+          // belongs in the console. A `check` runs on every idle and
+          // would say the same thing over and over; the editor's
+          // markers carry that one.
+          for (const d of event.diagnostics) {
+            emitRef.current?.({
+              t: "diagnostic",
+              severity: d.severity,
+              ...(d.code === undefined ? {} : { code: d.code }),
+              file: d.file,
+              line: d.line,
+              column: d.column,
+              message: d.message,
+              ...(d.note === undefined ? {} : { note: d.note }),
+            });
+          }
           // A failed build sends no `program`, so it answers here.
           if (!event.ok) {
             offBuilt();
