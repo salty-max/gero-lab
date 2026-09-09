@@ -26,7 +26,7 @@ export function Header() {
           <ModeToggle />
         </div>
         <a
-          href="https://github.com/salty-max/gero_2.0/tree/main/apps/gero-lab"
+          href="https://github.com/salty-max/gero-lab"
           target="_blank"
         >
           <Button variant="outline">
