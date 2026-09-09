@@ -51,6 +51,12 @@ export type ProgramApi = {
   setSource(text: string, name?: string): void;
   openFile(name: string): void;
   openName: string;
+  /** Add an empty buffer and open it. A name already in the set is
+   *  opened rather than duplicated (§4.2). */
+  addFile(name: string): void;
+  /** Drop a buffer. The entry stays: a set without the file the build
+   *  starts from has nothing to build. */
+  removeFile(name: string): void;
   setProgram(files: SourceFile[], entryName: string, lang: Lang): void;
 
   build(): Promise<ProgramBuild>;
@@ -158,6 +164,23 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
     [openName],
   );
 
+  const addFile = useCallback((name: string) => {
+    setFiles((prev) =>
+      prev.some((f) => f.name === name) ? prev : [...prev, { name, text: "" }],
+    );
+    setOpenName(name);
+  }, []);
+
+  const removeFile = useCallback(
+    (name: string) => {
+      if (name === entryName) return;
+      setFiles((prev) => prev.filter((f) => f.name !== name));
+      setOpenName((open) => (open === name ? entryName : open));
+      setSourceVersion((v) => v + 1);
+    },
+    [entryName],
+  );
+
   const setProgram = useCallback((next: SourceFile[], entry: string, nextLang: Lang) => {
     setFiles(next);
     setEntryName(entry);
@@ -244,6 +267,8 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
       setSource,
       openFile: setOpenName,
       openName,
+      addFile,
+      removeFile,
       setProgram,
       build,
       check,
@@ -265,6 +290,8 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
       getSource,
       setSource,
       openName,
+      addFile,
+      removeFile,
       setProgram,
       build,
       check,

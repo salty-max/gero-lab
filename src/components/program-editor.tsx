@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AsmEditor } from './asm-editor'
+import { FileTabs } from './file-tabs'
 import { useProgram } from '@/contexts/program-context'
 import { useVM } from '@/contexts/vm-context'
 import { lineAt } from '@/worker/debug'
@@ -142,7 +143,8 @@ export function ProgramEditor({ label }: ProgramEditorProps) {
           </Button>
           <SourcePosition />
         </div>
-        <div className="flex-1 min-h-0 pr-6 pt-4 pb-6">
+        <FileTabs />
+        <div className="flex-1 min-h-0 pr-6 pb-6">
           {open && (
             <AsmEditor
               key={editorKey}

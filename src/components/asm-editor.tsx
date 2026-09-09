@@ -40,6 +40,13 @@ type Props = {
   initialValue?: string
 }
 
+/** What an empty entry file says, in that language's comment syntax
+ *  (§4.1). Only the entry: a file the user has just added needs no
+ *  instructions on how to begin. */
+const emptyHint = (lang: Lang) =>
+  `${lang === 'gr' ? '--' : ';'} Start coding or select a sample program`
+
+
 /** One Monaco language per gero language, so a `.gr` buffer is not
  *  configured as assembly. */
 const LANGUAGE_ID: Record<Lang, string> = { gas: 'gero-asm', gr: 'gero-lang' }
@@ -141,7 +148,7 @@ function registerLanguages() {
 export function AsmEditor({
   height = 260,
   className = '',
-  initialValue = '; Start coding or select a sample program',
+  initialValue,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const program = useProgram()
@@ -158,6 +165,8 @@ export function AsmEditor({
   const lang = program.lang
   const text = program.getSource()
   const debug = program.debug
+  const hint =
+    initialValue ?? (openName === program.entryName ? emptyHint(lang) : '')
   const languageId = LANGUAGE_ID[lang]
   const uri = useMemo(
     () => monaco.Uri.parse(`inmemory://gero/${openName}`),
@@ -217,7 +226,7 @@ export function AsmEditor({
 
     // Reuse an existing model so edits survive the sheet closing.
     const existing = monaco.editor.getModel(uri)
-    const seed = text || initialValue
+    const seed = text || hint
     const model = existing ?? monaco.editor.createModel(seed, languageId, uri)
     modelRef.current = model
     if (existing) {
@@ -273,7 +282,7 @@ export function AsmEditor({
       // The model is kept so content survives a sheet toggle.
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uri, languageId, initialValue, theme, program.setSource])
+  }, [uri, languageId, hint, theme, program.setSource])
 
   /**
    * The line being executed, and the lines holding breakpoints.
@@ -362,7 +371,7 @@ export function AsmEditor({
   useEffect(() => {
     const m = modelRef.current
     if (!m) return
-    const src = text || initialValue
+    const src = text || hint
     if (src !== m.getValue()) {
       suppressSetRef.current = true
       try {
@@ -371,7 +380,7 @@ export function AsmEditor({
         suppressSetRef.current = false
       }
     }
-  }, [text, initialValue])
+  }, [text, hint])
 
   return (
     <div
