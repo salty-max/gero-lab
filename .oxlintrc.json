@@ -23,13 +23,31 @@
     "eslint/no-await-in-loop": "off",
     // Vitest's `expect(actual, message)` takes the message this rule,
     // written for Jest, refuses.
-    "vitest/valid-expect": "off"
+    "vitest/valid-expect": "off",
+    // A one-letter lambda parameter shadowing another one-letter lambda
+    // parameter is not a defect, and the ported application is written
+    // that way throughout.
+    "eslint/no-shadow": "off",
+    // Where a render helper lives is a readability call, not a
+    // correctness one.
+    "unicorn/consistent-function-scoping": "off",
+    // These two model dependencies the way the React Compiler does and
+    // contradict `react-hooks/exhaustive-deps`, which stays on: one
+    // wants `vm.build` as the dependency, the other wants `vm`. Two
+    // rules that cannot both be satisfied are worse than one.
+    "react/memo-dependencies": "off",
+    "react/exhaustive-effect-dependencies": "off"
   },
   "ignorePatterns": ["dist", "public", ".gero"],
   "overrides": [
     {
       "files": ["scripts/**/*.mjs", "*.config.ts"],
       "env": { "node": true, "browser": false }
+    },
+    {
+      // Vite resolves `?worker` into a module this cannot follow.
+      "files": ["src/lib/monaco-setup.ts"],
+      "rules": { "import/default": "off" }
     },
     {
       "files": ["src/worker/engine.worker.ts"],
@@ -43,7 +61,11 @@
       "files": ["src/components/ui/**"],
       "rules": {
         "jsx-a11y/label-has-associated-control": "off",
-        "jsx-a11y/prefer-tag-over-role": "off"
+        "jsx-a11y/prefer-tag-over-role": "off",
+        "eslint/no-underscore-dangle": "off",
+        "react/jsx-no-constructed-context-values": "off",
+        "react/set-state-in-effect": "off",
+        "react/exhaustive-effect-dependencies": "off"
       }
     }
   ]

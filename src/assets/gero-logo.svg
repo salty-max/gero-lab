@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 75.28 46" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="GeroLab Ribbon Triangles">
+  <title>GeroLab Ribbon Triangles</title>
+  <!-- Two red equilateral triangles facing each other and touching at the center -->
+  <!-- Geometry: side = 40, height = 40*sqrt(3)/2 ≈ 34.64; center (80,40) -->
+  <!-- Left (pointing right) -->
+  <polygon points="37.64,23 3,3 3,43" fill="currentColor" stroke="currentColor" stroke-width="6" stroke-linejoin="round" />
+  <!-- Right (pointing left) -->
+  <polygon points="37.64,23 72.28,3 72.28,43" fill="currentColor" stroke="currentColor" stroke-width="6" stroke-linejoin="round" />
+</svg>

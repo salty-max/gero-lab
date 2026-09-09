@@ -50,6 +50,13 @@ export interface Diagnostic {
   note?: string;
 }
 
+/** The registers in the module's own index order, which is what
+ *  `gero_vm_regs` returns them in. */
+export const REGISTER_NAMES = [
+  "ip", "acu", "r1", "r2", "r3", "r4", "r5", "r6",
+  "r7", "r8", "sp", "fp", "mb", "im", "flg",
+] as const;
+
 /** The register file, in `Register` index order. */
 export interface Registers {
   ip: number;

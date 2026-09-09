@@ -15,6 +15,7 @@ import {
   type Command,
   type Diagnostic,
   type Event,
+  REGISTER_NAMES,
   type PauseReason,
   type Registers,
 } from "./protocol.js";
@@ -27,11 +28,6 @@ export type Emit = (event: Event) => void;
 /** Yields to the event loop between slices. Overridden in tests so a
  *  run completes without real timers. */
 export type Yield = () => Promise<void>;
-
-const REGISTER_NAMES = [
-  "ip", "acu", "r1", "r2", "r3", "r4", "r5", "r6",
-  "r7", "r8", "sp", "fp", "mb", "im", "flg",
-] as const;
 
 function toRegisters(values: readonly number[]): Registers {
   const out = {} as Registers;
