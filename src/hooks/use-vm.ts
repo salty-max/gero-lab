@@ -321,6 +321,31 @@ export function useVMService() {
     client.current?.send({ type: "irq", vector });
   }, []);
 
+  /** The program's battery-backed banks, and restoring them.
+   *
+   *  The read is answered by an `sram` event, so it resolves on the one
+   *  that comes back rather than returning a value. */
+  const readSram = useCallback(
+    () =>
+      new Promise<Uint8Array>((resolve, reject) => {
+        const engine = client.current;
+        if (!engine) {
+          reject(new Error("the engine is not connected"));
+          return;
+        }
+        const off = engine.on("sram", (event) => {
+          off();
+          resolve(event.bytes);
+        });
+        engine.send({ type: "sram" });
+      }),
+    [],
+  );
+
+  const writeSram = useCallback((bytes: Uint8Array) => {
+    client.current?.send({ type: "loadSram", bytes });
+  }, []);
+
   return {
     ready,
     running,
@@ -344,6 +369,8 @@ export function useVMService() {
     poke,
     pokeMany,
     raiseIrq,
+    readSram,
+    writeSram,
     send: (command: Parameters<EngineClient["send"]>[0]) => client.current?.send(command),
   };
 }

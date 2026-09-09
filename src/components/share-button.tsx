@@ -17,9 +17,9 @@ import { Check, Download, Link2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useProgram } from "@/contexts/program-context";
 import { cn } from "@/lib/utils";
-import { ShareTooLongError } from "@/share";
-import { sharedFrom, shareUrlFor, type Buffer } from "@/state/workspace";
+import { ShareTooLongError, encodeShareUrl, type SharedProgram } from "@/share";
 
 /** How long the copied confirmation stays up. Long enough to read,
  *  short enough not to look like state. */
@@ -31,14 +31,23 @@ type Status =
   | { kind: "too-long"; message: string }
   | { kind: "failed"; message: string };
 
-export function ShareButton({ buffer }: { buffer: Buffer }) {
+export function ShareButton() {
+  const program = useProgram();
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const field = useRef<HTMLInputElement>(null);
+
+  /** What a link carries, and all it carries — no breakpoints, no
+   *  layout, no theme (§8). */
+  const shared = (): SharedProgram => ({
+    files: program.files,
+    entry: program.entryName,
+    lang: program.lang,
+  });
 
   const share = async () => {
     let url: string;
     try {
-      url = await shareUrlFor(buffer);
+      url = await encodeShareUrl(shared(), globalThis.location.href);
     } catch (err: unknown) {
       setStatus(
         err instanceof ShareTooLongError
@@ -64,13 +73,13 @@ export function ShareButton({ buffer }: { buffer: Buffer }) {
   };
 
   const download = () => {
-    const blob = new Blob([JSON.stringify(sharedFrom(buffer), null, 2)], {
+    const blob = new Blob([JSON.stringify(shared(), null, 2)], {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `${buffer.entry}.gerolab.json`;
+    anchor.download = `${program.entryName}.gerolab.json`;
     anchor.click();
     URL.revokeObjectURL(url);
     setStatus({ kind: "idle" });

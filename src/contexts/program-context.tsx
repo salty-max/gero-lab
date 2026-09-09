@@ -14,12 +14,16 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 
 import { useVM } from "./vm-context";
+import { decodeShareUrl } from "@/share";
+import { Persistence, browserStore } from "@/state/storage";
 import { NO_DEBUG_INFO, parseDebugInfo, type DebugInfo } from "@/worker/debug";
 import type { Diagnostic, Lang, SourceFile } from "@/worker/protocol";
 
@@ -67,6 +71,54 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
   const [sourceVersion, setSourceVersion] = useState(0);
   const [lastBuild, setLastBuild] = useState<ProgramBuild | null>(null);
   const [building, setBuilding] = useState(false);
+  const persistence = useMemo(() => new Persistence(browserStore()), []);
+  /** Set once the restore has run, so the first render does not save an
+   *  empty set over what was stored. */
+  const restored = useRef(false);
+
+  /**
+   * Where the program comes from: a shared link, then the last
+   * session's buffers (§7, §8).
+   *
+   * A link is the most specific thing the user asked for, so it wins —
+   * and its payload leaves the address bar once taken, or a reload
+   * would re-open the sender's program over whatever has been edited
+   * since.
+   */
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      const shared = await decodeShareUrl(globalThis.location.href).catch(() => null);
+      if (!live) return;
+      if (shared) {
+        setFiles(shared.files);
+        setEntryName(shared.entry);
+        setLang(shared.lang);
+        setOpenName(shared.entry);
+        const { pathname, search } = globalThis.location;
+        globalThis.history.replaceState(null, "", `${pathname}${search}`);
+      } else {
+        const stored = persistence.loadWorkingSet();
+        if (stored) {
+          setFiles(stored.files);
+          setEntryName(stored.entry);
+          setLang(stored.lang);
+          setOpenName(stored.open);
+        }
+      }
+      restored.current = true;
+    })();
+    return () => {
+      live = false;
+    };
+  }, [persistence]);
+
+  // Saved on every edit: losing a tab must not lose work (§7).
+  useEffect(() => {
+    if (!restored.current || files.length === 0) return;
+    persistence.saveWorkingSet({ sample: entryName, entry: entryName, lang, files, open: openName });
+  }, [files, entryName, lang, openName, persistence]);
+
   const getSource = useCallback(
     (name?: string) => files.find((f) => f.name === (name ?? openName))?.text ?? "",
     [files, openName],
@@ -107,11 +159,15 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
         debug: result.debugJson ? parseDebugInfo(result.debugJson) : NO_DEBUG_INFO,
       };
       setLastBuild(out);
+      if (out.image.length > 0) {
+        const saved = persistence.loadSram(entryName);
+        if (saved) vm.writeSram(saved);
+      }
       return out;
     } finally {
       setBuilding(false);
     }
-  }, [buildInWorker, files, entryName, lang]);
+  }, [buildInWorker, files, entryName, lang, persistence, vm]);
 
   const api: ProgramApi = useMemo(
     () => ({

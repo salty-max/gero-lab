@@ -1,6 +1,7 @@
 import { CodeXmlIcon } from 'lucide-react'
 import { ModeToggle } from './mode-toggle'
 import { CRTToggle } from './crt-toggle'
+import { ShareButton } from './share-button'
 import { Button } from './ui/button'
 
 import GeroLogoRaw from '@/assets/gero-logo.svg?raw'
@@ -20,6 +21,7 @@ export function Header() {
       </div>
       <nav className="flex gap-3">
         <div className="flex items-center gap-2">
+          <ShareButton />
           <CRTToggle />
           <ModeToggle />
         </div>

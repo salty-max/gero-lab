@@ -25,7 +25,6 @@ import type { Diagnostic } from '@/worker/protocol'
 type Props = {
   height?: number | string
   className?: string
-  uri?: string
   initialValue?: string
 }
 
@@ -60,12 +59,19 @@ function toMarker(d: Diagnostic): monaco.editor.IMarkerData {
 export function AsmEditor({
   height = 260,
   className = '',
-  uri: uriStr = 'inmemory://model.gasm',
   initialValue = '; Start coding or select a sample program',
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const uri = useMemo(() => monaco.Uri.parse(uriStr), [uriStr])
   const program = useProgram()
+  // One model per file, which is what Monaco expects and what a
+  // multi-file program needs: switching files switches models rather
+  // than rewriting one buffer's contents underneath the editor.
+  const openName = program.openName
+  const text = program.getSource()
+  const uri = useMemo(
+    () => monaco.Uri.parse(`inmemory://gero/${openName}`),
+    [openName]
+  )
   const { theme } = useTheme()
   const modelRef = useRef<monaco.editor.ITextModel | null>(null)
   const suppressSetRef = useRef(false)
@@ -79,7 +85,7 @@ export function AsmEditor({
 
     // Reuse an existing model so edits survive the sheet closing.
     const existing = monaco.editor.getModel(uri)
-    const seed = program.getSource() || initialValue
+    const seed = text || initialValue
     const model = existing ?? monaco.editor.createModel(seed, LANGUAGE_ID, uri)
     modelRef.current = model
     if (existing && seed !== model.getValue()) {
@@ -105,7 +111,9 @@ export function AsmEditor({
       rulers: [80],
     })
 
-    program.setSource(model.getValue())
+    // Deliberately no write-back of the seed: the model was seeded from
+    // the program, and pushing it back would overwrite a restored
+    // working set with this editor's placeholder if it mounted first.
     const sub = model.onDidChangeContent(() => {
       if (suppressSetRef.current) return
       program.setSource(model.getValue())
@@ -117,7 +125,8 @@ export function AsmEditor({
       // The model is kept so content survives a sheet toggle.
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uri, initialValue, theme, program.setSource])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uri, initialValue, theme])
 
   // The build's diagnostics become the editor's markers, so a squiggle
   // and the diagnostics pane always say the same thing.
@@ -130,10 +139,11 @@ export function AsmEditor({
     monaco.editor.setModelMarkers(model, 'gero', mine.map(toMarker))
   }, [program.lastBuild, program.openName])
 
+  // The program's text is the source of truth; the model follows it.
   useEffect(() => {
     const m = modelRef.current
     if (!m) return
-    const src = program.getSource() || initialValue
+    const src = text || initialValue
     if (src !== m.getValue()) {
       suppressSetRef.current = true
       try {
@@ -143,7 +153,7 @@ export function AsmEditor({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [program.getSource, program.sourceVersion, initialValue])
+  }, [text, initialValue])
 
   return (
     <div
