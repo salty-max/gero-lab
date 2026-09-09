@@ -175,6 +175,26 @@ end
     expect(of("paused").at(-1)?.reason).toBe("breakpoint");
   });
 
+  it("reports a fault with its vector, not as a halt", async () => {
+    const { engine, of } = harness();
+    await engine.receive({ type: "init" });
+    await engine.receive({
+      type: "build",
+      files: [{ name: "main.gas", text: "main:\n  mov $0000, r1\n  div r1, r1\n  hlt\n" }],
+      entry: "main.gas",
+      lang: "gas",
+    });
+
+    await engine.receive({ type: "run" });
+
+    // A fault is not a halt: the UI shows it differently, and the
+    // vector is the only thing that says which fault it was. Vector
+    // $03 is division by zero (isa.md §6.1).
+    const paused = of("paused").at(-1);
+    expect(paused?.reason).toBe("fault");
+    expect(paused?.fault).toBe(0x03);
+  });
+
   it("steps one instruction and reports where it stopped", async () => {
     const { engine, of } = harness();
     await engine.receive({ type: "init" });
