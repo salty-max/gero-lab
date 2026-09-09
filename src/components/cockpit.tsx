@@ -25,9 +25,10 @@ export function Cockpit() {
   )
 
   // Sync breakpoints to VM
+  const { setBreakpoints: syncBreakpoints } = vm
   useEffect(() => {
-    vm.setBreakpoints(breakpoints)
-  }, [vm, breakpoints])
+    syncBreakpoints(breakpoints)
+  }, [syncBreakpoints, breakpoints])
 
   // Determine whether a program is considered "loaded".
   // We rely on the presence of an initial snapshot; prior to the first

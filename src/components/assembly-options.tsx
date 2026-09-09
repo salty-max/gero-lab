@@ -13,12 +13,16 @@ import { SettingsIcon } from 'lucide-react'
 type Props = {
   codeOnly: boolean
   setCodeOnly: (v: boolean) => void
+  showBytes: boolean
+  setShowBytes: (v: boolean) => void
 }
 
-// `show bytes` is not offered: `gero_disasm` takes no flag for the hex
-// column its printer can print, and a toggle that does nothing is worse
-// than one that is absent.
-export function AssemblyOptions({ codeOnly, setCodeOnly }: Props) {
+export function AssemblyOptions({
+  codeOnly,
+  setCodeOnly,
+  showBytes,
+  setShowBytes,
+}: Props) {
   return (
     <DropdownMenu>
       <Tooltip>
@@ -43,6 +47,13 @@ export function AssemblyOptions({ codeOnly, setCodeOnly }: Props) {
           onSelect={(e) => e.preventDefault()}
         >
           code only
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuCheckboxItem
+          checked={showBytes}
+          onCheckedChange={(v) => setShowBytes(Boolean(v))}
+          onSelect={(e) => e.preventDefault()}
+        >
+          show bytes
         </DropdownMenuCheckboxItem>
       </DropdownMenuContent>
     </DropdownMenu>

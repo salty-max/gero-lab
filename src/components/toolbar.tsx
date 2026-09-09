@@ -8,6 +8,7 @@ import {
 import { ProgramEditor } from './program-editor'
 import { MemoryWritePopover } from './memory-write-popover'
 import { Button } from './ui/button'
+import { HexInput } from './ui/hex-input'
 import { Label } from './ui/label'
 import { Separator } from './ui/separator'
 import { Slider } from './ui/slider'
@@ -30,8 +31,17 @@ export function ToolBar() {
       <div className="flex items-stretch gap-4">
         <div className="flex items-stretch gap-4">
           <div className="flex items-center gap-2">
-            <Label>Entry</Label>
-            <span className="font-mono text-xs tabular-nums">{entryHex}</span>
+            <Label>Start @</Label>
+            <HexInput
+              name="startIp"
+              value={entryHex}
+              onEnter={(s) => {
+                const v = parseInt(s, 16)
+                if (!Number.isNaN(v)) {
+                  program.setEntry(u16(v))
+                }
+              }}
+            />
           </div>
           <Separator orientation="vertical" className="h-[36px]" />
           <div className="flex items-center gap-2">

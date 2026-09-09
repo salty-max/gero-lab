@@ -119,7 +119,15 @@ export type Event =
   /** The disassembly and debug tables of the image just built. Sent
    *  only on success; `debugJson` is null for an image carrying no
    *  debug section, which the UI reports rather than hiding. */
-  | { type: "program"; disassembly: string; debugJson: string | null }
+  | {
+      type: "program";
+      disassembly: string;
+      /** The same listing with the hex column, for the pane's `show
+       *  bytes` option. Built alongside so switching it needs no round
+       *  trip. */
+      disassemblyWithBytes: string;
+      debugJson: string | null;
+    }
   | { type: "paused"; reason: PauseReason; ip: number; fault?: number; steps: number }
   | { type: "snapshot"; regs: Registers }
   | { type: "mem"; addr: number; bytes: Uint8Array }

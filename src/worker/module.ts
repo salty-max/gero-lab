@@ -67,7 +67,7 @@ interface Exports {
   gero_check(namePtr: number, nameLen: number, lang: number): number;
   gero_compile(namePtr: number, nameLen: number): number;
   gero_assemble(namePtr: number, nameLen: number): number;
-  gero_disasm(gxPtr: number, gxLen: number, bank: number): number;
+  gero_disasm(gxPtr: number, gxLen: number, bank: number, showBytes: number): number;
   gero_debug_info(gxPtr: number, gxLen: number): number;
   gero_vm_create(): number;
   gero_vm_destroy(handle: number): number;
@@ -201,10 +201,15 @@ export class GeroModule {
     return this.result(this.ex.gero_check(n.ptr, n.len, LangCode[lang]));
   }
 
-  /** Disassemble an image. Text, one instruction per line. */
-  disasm(image: Uint8Array, bank: number = NO_BANK): string {
+  /** Disassemble an image. Text, one instruction per line.
+   *
+   *  `showBytes` adds the hex column beside each instruction. It has to
+   *  come from the module: the gutter carries CPU addresses, not
+   *  offsets into the `.gx`, so slicing the bytes here would read the
+   *  file's header. */
+  disasm(image: Uint8Array, bank: number = NO_BANK, showBytes = false): string {
     const ptr = this.put(image);
-    const r = this.result(this.ex.gero_disasm(ptr, image.length, bank));
+    const r = this.result(this.ex.gero_disasm(ptr, image.length, bank, showBytes ? 1 : 0));
     if (r.status !== Status.ok) throw new ModuleError(r.status, "gero_disasm");
     return r.payload ? this.decoder.decode(r.payload) : "";
   }

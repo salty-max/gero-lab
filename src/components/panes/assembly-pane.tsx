@@ -103,14 +103,16 @@ function InstructionRow({
         {row.addr === null ? '' : `${fmt16(row.addr, true)}:`}
       </span>
 
-      <span
-        className={cn(
-          'whitespace-pre',
-          isCurrent ? 'text-primary font-semibold' : 'text-muted-foreground'
-        )}
-      >
-        {row.text}
-      </span>
+      <div className="flex gap-4 items-baseline">
+        <span
+          className={cn(
+            'whitespace-pre',
+            isCurrent ? 'text-primary font-semibold' : 'text-muted-foreground'
+          )}
+        >
+          {row.text}
+        </span>
+      </div>
     </div>
   )
 }
@@ -125,6 +127,16 @@ export function AssemblyPane({
 }: AssemblyPaneProps) {
   const vm = useVM()
   const program = useProgram()
+  const [showBytes, setShowBytes] = useState<boolean>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY)
+      if (!raw) return false
+      const obj = JSON.parse(raw) as Record<string, unknown>
+      return typeof obj.showBytes === 'boolean' ? obj.showBytes : false
+    } catch {
+      return false
+    }
+  })
   const [codeOnly, setCodeOnly] = useState<boolean>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY)
@@ -137,20 +149,26 @@ export function AssemblyPane({
   })
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ codeOnly }))
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ codeOnly, showBytes }))
     } catch {
       // A refusing store costs the preference, not the pane.
     }
-  }, [codeOnly])
+  }, [codeOnly, showBytes])
 
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const currentRowRef = useRef<HTMLDivElement | null>(null)
   const currentIP = vm.snap?.ip ?? 0
 
   const rows = useMemo(() => {
-    const all = toRows(program.lastBuild?.disassembly ?? '')
+    // The module renders both listings on a build, so the toggle is a
+    // choice between them rather than a round trip.
+    const all = toRows(
+      (showBytes
+        ? program.lastBuild?.disassemblyWithBytes
+        : program.lastBuild?.disassembly) ?? ''
+    )
     return codeOnly ? all.filter((r) => !r.isComment) : all
-  }, [program.lastBuild, codeOnly])
+  }, [program.lastBuild, codeOnly, showBytes])
 
   // Follow the current instruction as it moves.
   useEffect(() => {
@@ -177,7 +195,12 @@ export function AssemblyPane({
       className="max-h-[550px]"
       actions={
         <div className="flex items-center justify-end">
-          <AssemblyOptions codeOnly={codeOnly} setCodeOnly={(v) => setCodeOnly(Boolean(v))} />
+          <AssemblyOptions
+            codeOnly={codeOnly}
+            setCodeOnly={(v) => setCodeOnly(Boolean(v))}
+            showBytes={showBytes}
+            setShowBytes={(v) => setShowBytes(Boolean(v))}
+          />
         </div>
       }
     >

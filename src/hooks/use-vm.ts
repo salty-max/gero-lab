@@ -35,6 +35,7 @@ export interface BuildResult {
   image?: Uint8Array;
   diagnostics: Diagnostic[];
   disassembly: string;
+  disassemblyWithBytes: string;
   debugJson: string | null;
 }
 
@@ -135,12 +136,11 @@ export function useVMService() {
         case "bp": {
           const before = breakpoints.current;
           breakpoints.current = event.addrs;
-          emit({
-            t: "bp",
-            add: event.addrs.filter((a) => !before.includes(a)),
-            remove: before.filter((a) => !event.addrs.includes(a)),
-            total: event.addrs.length,
-          });
+          const add = event.addrs.filter((a) => !before.includes(a));
+          const remove = before.filter((a) => !event.addrs.includes(a));
+          if (add.length > 0 || remove.length > 0) {
+            emit({ t: "bp", add, remove, total: event.addrs.length });
+          }
           break;
         }
         case "irq":
@@ -202,17 +202,19 @@ export function useVMService() {
           if (!event.ok) {
             offBuilt();
             offProgram();
-            resolve({ ...event, disassembly: "", debugJson: null });
+            resolve({ ...event, disassembly: "", disassemblyWithBytes: "", debugJson: null });
           }
         });
         const offProgram = engine.on("program", (event) => {
           offBuilt();
           offProgram();
+          if (built?.image) pendingLoad.current = built.image.length;
           resolve({
             ok: true,
             ...(built?.image ? { image: built.image } : {}),
             diagnostics: built?.diagnostics ?? [],
             disassembly: event.disassembly,
+            disassemblyWithBytes: event.disassemblyWithBytes,
             debugJson: event.debugJson,
           });
         });

@@ -34,6 +34,8 @@ export type ProgramBuild = {
   diagnostics: Diagnostic[];
   /** Annotated assembly, one instruction per line, addresses included. */
   disassembly: string;
+  /** The same listing with the hex byte column. */
+  disassemblyWithBytes: string;
   debug: DebugInfo;
 };
 
@@ -57,6 +59,9 @@ export type ProgramApi = {
   programBase: number;
   /** Where the VM booted to, from the snapshot after a load. */
   entry: number;
+  /** Start the next run somewhere else. `ip` is a register, and the
+   *  module lets a host write it. */
+  setEntry(addr: number): void;
 };
 
 const ProgramContext = createContext<ProgramApi | null>(null);
@@ -156,6 +161,7 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
         image: result.image ?? new Uint8Array(0),
         diagnostics: result.diagnostics,
         disassembly: result.disassembly,
+        disassemblyWithBytes: result.disassemblyWithBytes,
         debug: result.debugJson ? parseDebugInfo(result.debugJson) : NO_DEBUG_INFO,
       };
       setLastBuild(out);
@@ -168,6 +174,14 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
       setBuilding(false);
     }
   }, [buildInWorker, files, entryName, lang, persistence, vm]);
+
+  const { setReg } = vm;
+  const setEntry = useCallback(
+    (addr: number) => {
+      setReg("ip", addr & 0xffff);
+    },
+    [setReg],
+  );
 
   const api: ProgramApi = useMemo(
     () => ({
@@ -185,6 +199,7 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
       building,
       programBase: 0,
       entry: vm.snap?.ip ?? 0,
+      setEntry,
     }),
     [
       files,
@@ -199,6 +214,7 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
       lastBuild,
       building,
       vm.snap?.ip,
+      setEntry,
     ],
   );
 

@@ -164,6 +164,7 @@ export class Engine {
     this.emit({
       type: "program",
       disassembly: mod.disasm(r.payload),
+      disassemblyWithBytes: mod.disasm(r.payload, undefined, true),
       debugJson: mod.debugInfo(r.payload),
     });
 
@@ -208,8 +209,8 @@ export class Engine {
   /**
    * Run in slices, yielding between them.
    *
-   * Events coalesce per slice — at most one `output` and one `trace`,
-   * whatever the program did inside it. A program printing in a tight
+   * Events coalesce per slice — at most one `snapshot`, one `output`
+   * and one `trace`, whatever the program did inside it. A program printing in a tight
    * loop therefore produces a bounded event rate no matter how fast it
    * runs, which is the difference between a responsive UI and a page
    * that dies under its own message queue.
@@ -238,8 +239,12 @@ export class Engine {
           throw new Error("no image is loaded — send `build` or `load` first");
         }
 
-        // Still running: one trace per slice, not one per instruction.
+        // Still running: one trace and one snapshot per slice, not per
+        // instruction (§3). The snapshot is what moves the cockpit's
+        // cursor while a program runs — without it the panes only
+        // update where it stops.
         this.emit({ type: "trace", ip: outcome.ip, steps: outcome.steps });
+        this.emitSnapshot();
         // The delay rides the yield the loop already takes, so a paced
         // run is still a `pause` away from stopping.
         await this.nextTick(stepDelayMs);
