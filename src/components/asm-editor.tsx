@@ -94,14 +94,26 @@ const stateAt = (line: number): TokenState => ({
 })
 
 /**
+ * The colours of the last parse, per language.
+ *
+ * Module scope rather than component state: the tokens provider is
+ * registered once for the page and keeps whatever it closed over, so a
+ * map held by a component would go stale the moment that component
+ * remounted — which is what choosing a sample does.
+ */
+const TOKEN_LINES: Record<Lang, Map<number, LineToken[]>> = {
+  gas: new Map(),
+  gr: new Map(),
+}
+
+/**
  * Register both languages once for the page.
  *
- * The tokens provider reads the map the tree-sitter pass fills in.
  * Monaco tokenizes one line at a time and does not say which, so the
  * line number rides in the tokenizer state — the contract's own
  * mechanism for carrying something between lines.
  */
-function registerLanguages(tokensOf: (lang: Lang) => Map<number, LineToken[]>) {
+function registerLanguages() {
   for (const lang of ['gas', 'gr'] as const) {
     const id = LANGUAGE_ID[lang]
     if (monaco.languages.getLanguages().some((l) => l.id === id)) continue
@@ -110,7 +122,7 @@ function registerLanguages(tokensOf: (lang: Lang) => Map<number, LineToken[]>) {
     monaco.languages.setTokensProvider(id, {
       getInitialState: () => stateAt(0),
       tokenize: (_line, state) => ({
-        tokens: tokensOf(lang).get((state as TokenState).line) ?? [
+        tokens: TOKEN_LINES[lang].get((state as TokenState).line) ?? [
           { startIndex: 0, scopes: '' },
         ],
         endState: stateAt((state as TokenState).line + 1),
@@ -129,12 +141,6 @@ export function AsmEditor({
   const { theme } = useTheme()
   const modelRef = useRef<monaco.editor.ITextModel | null>(null)
   const suppressSetRef = useRef(false)
-  /** The colours of the last parse, per language, read by the tokens
-   *  provider Monaco calls back into. */
-  const tokens = useRef<Record<Lang, Map<number, LineToken[]>>>({
-    gas: new Map(),
-    gr: new Map(),
-  })
 
   const openName = program.openName
   const lang = program.lang
@@ -169,7 +175,7 @@ export function AsmEditor({
     installMonacoWorkers()
     if (!containerRef.current) return
 
-    registerLanguages((l) => tokens.current[l])
+    registerLanguages()
 
     // Reuse an existing model so edits survive the sheet closing.
     const existing = monaco.editor.getModel(uri)
@@ -224,7 +230,7 @@ export function AsmEditor({
     const timer = setTimeout(() => {
       void highlight(text, lang).then((lines) => {
         if (!live) return
-        tokens.current[lang] = lines
+        TOKEN_LINES[lang] = lines
         retokenize(model)
       })
       void check().then((found) => {
