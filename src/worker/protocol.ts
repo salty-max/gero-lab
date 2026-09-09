@@ -85,8 +85,9 @@ export type Command =
   | { type: "load"; image: Uint8Array }
   | { type: "reset" }
   /** Run until paused. `sliceBudget` overrides the default instruction
-   *  budget per turn. */
-  | { type: "run"; sliceBudget?: number }
+   *  budget per turn, and `stepDelayMs` waits that long between slices
+   *  so a run can be watched rather than only measured. */
+  | { type: "run"; sliceBudget?: number; stepDelayMs?: number }
   | { type: "pause" }
   | { type: "step"; count?: number }
   /** Replace the breakpoint set wholesale — idempotent, so the UI need

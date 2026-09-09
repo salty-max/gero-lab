@@ -302,5 +302,58 @@ end
 
     expect(order).toEqual(["pause", "step"]);
   });
+
+  it("paces a run with the step delay the toolbar sets", async () => {
+    const waits: number[] = []
+    const events: Event[] = []
+    let ticks = 0
+    const engine: Engine = new Engine(
+      (e) => events.push(e),
+      () => GeroModule.instantiate(readFileSync(WASM)),
+      async (ms) => {
+        waits.push(ms)
+        ticks += 1
+        if (ticks === 3) await engine.receive({ type: "pause" })
+      },
+    );
+    await engine.receive({ type: "init" });
+    await engine.receive({
+      type: "build",
+      files: [{ name: "main.gas", text: "start:\n  jmp start\n" }],
+      entry: "main.gas",
+      lang: "gas",
+    });
+
+    await engine.receive({ type: "run", sliceBudget: 1, stepDelayMs: 250 });
+
+    // The delay rides the loop's own yield, so a paced run is still a
+    // `pause` away from stopping — it does not sleep past it.
+    expect(waits.length).toBeGreaterThan(0);
+    expect(new Set(waits)).toEqual(new Set([250]));
+    expect(events.findLast((e) => e.type === "paused")).toMatchObject({
+      reason: "manual",
+    });
+  });
+
+  it("does not wait when no delay is asked for", async () => {
+    const waits: number[] = []
+    const engine: Engine = new Engine(
+      () => undefined,
+      () => GeroModule.instantiate(readFileSync(WASM)),
+      async (ms) => {
+        waits.push(ms)
+        await engine.receive({ type: "pause" })
+      },
+    );
+    await engine.receive({ type: "init" });
+    await engine.receive({
+      type: "build",
+      files: [{ name: "main.gas", text: "start:\n  jmp start\n" }],
+      entry: "main.gas",
+      lang: "gas",
+    });
+    await engine.receive({ type: "run", sliceBudget: 1 });
+    expect(waits).toEqual([0]);
+  });
 });
 

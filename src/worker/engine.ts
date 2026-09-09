@@ -25,9 +25,10 @@ import { GeroModule, ModuleError, StepReason, Status } from "./module.js";
  *  an array's `push`. */
 export type Emit = (event: Event) => void;
 
-/** Yields to the event loop between slices. Overridden in tests so a
- *  run completes without real timers. */
-export type Yield = () => Promise<void>;
+/** Yields to the event loop between slices, waiting `ms` when the run
+ *  is paced. Overridden in tests so a run completes without real
+ *  timers. */
+export type Yield = (ms: number) => Promise<void>;
 
 function toRegisters(values: readonly number[]): Registers {
   const out = {} as Registers;
@@ -75,7 +76,7 @@ export class Engine {
   constructor(
     private readonly emit: Emit,
     private readonly loadModule: () => Promise<GeroModule>,
-    private readonly nextTick: Yield = () => new Promise((r) => setTimeout(r, 0)),
+    private readonly nextTick: Yield = (ms) => new Promise((r) => setTimeout(r, ms)),
   ) {}
 
   /** Commands the engine runs at once, ahead of anything queued.
@@ -119,7 +120,7 @@ export class Engine {
       case "check": return this.check(command);
       case "load": return this.load(command.image);
       case "reset": return this.reset();
-      case "run": return this.run(command.sliceBudget ?? DEFAULT_SLICE_BUDGET);
+      case "run": return this.run(command.sliceBudget ?? DEFAULT_SLICE_BUDGET, command.stepDelayMs ?? 0);
       case "pause": return this.pause();
       case "step": return this.step(command.count ?? 1);
       case "breakpoints": return this.breakpoints(command.addrs);
@@ -213,7 +214,7 @@ export class Engine {
    * runs, which is the difference between a responsive UI and a page
    * that dies under its own message queue.
    */
-  private async run(sliceBudget: number): Promise<void> {
+  private async run(sliceBudget: number, stepDelayMs: number): Promise<void> {
     const { mod, handle } = this.need();
     if (this.running) return;
     this.running = true;
@@ -239,7 +240,9 @@ export class Engine {
 
         // Still running: one trace per slice, not one per instruction.
         this.emit({ type: "trace", ip: outcome.ip, steps: outcome.steps });
-        await this.nextTick();
+        // The delay rides the yield the loop already takes, so a paced
+        // run is still a `pause` away from stopping.
+        await this.nextTick(stepDelayMs);
       }
     } finally {
       this.running = false;

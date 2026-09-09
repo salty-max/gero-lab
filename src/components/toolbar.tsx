@@ -18,7 +18,7 @@ import { useVM } from '@/contexts/vm-context'
 export function ToolBar() {
   const program = useProgram()
   const vm = useVM()
-  const [delay, setDelay] = useState(vm.speedSteps - 1)
+  const [delay, setDelay] = useState(0)
   const entryHex = fmt16(u16(program.entry), true)
 
   return (
@@ -35,25 +35,23 @@ export function ToolBar() {
           </div>
           <Separator orientation="vertical" className="h-[36px]" />
           <div className="flex items-center gap-2">
-            <Label>Speed</Label>
+            <Label>Delay (ms)</Label>
             <Slider
               id="delayMs"
               name="delayMs"
               min={0}
-              max={vm.speedSteps - 1}
-              step={1}
+              max={3000}
+              step={50}
               value={[delay]}
               className="w-30"
               onValueChange={(vals) => {
                 const v = Array.isArray(vals) && vals.length ? vals[0]! : 0
                 const val = Number.isFinite(v) ? v : 0
                 setDelay(val)
-                vm.setSpeed(val)
+                vm.setStepDelay(val)
               }}
             />
-            <span className="text-xs tabular-nums w-16 text-right">
-              {delay === 0 ? '1 instr' : delay === vm.speedSteps - 1 ? 'full' : `×${String(delay)}`}
-            </span>
+            <span className="text-xs tabular-nums w-8 text-right">{delay}</span>
           </div>
         </div>
         <Separator orientation="vertical" />

@@ -47,17 +47,6 @@ const snapshotOf = (regs: Registers): Snapshot => ({
   fp: regs.fp,
 });
 
-/**
- * The slice budget each speed setting runs at.
- *
- * §3: "At the lowest setting one instruction per turn drives the
- * step-through visualization; at the highest the loop runs
- * uninterrupted until a breakpoint, fault, or `hlt`." The source
- * application spoke in milliseconds of delay; the worker's back-pressure
- * is a budget, so the control maps onto that instead of onto a sleep.
- */
-const SLICE_BUDGETS = [1, 8, 64, 1024, 16_384, DEFAULT_SLICE_BUDGET] as const;
-
 export function useVMService() {
   const [ready, setReady] = useState(false);
   const [running, setRunning] = useState(false);
@@ -68,6 +57,9 @@ export function useVMService() {
   /** Lets the commands below log alongside the worker's own events. */
   const emitRef = useRef<((ev: Ev) => void) | null>(null);
   const sliceBudget = useRef<number>(DEFAULT_SLICE_BUDGET);
+  /** How long the run loop waits between slices. The source
+   *  application's control, and the module honours it directly. */
+  const stepDelay = useRef(0);
   const breakpoints = useRef<number[]>([]);
   /** The last register file seen, for the events the worker reports as
    *  a value rather than as a change. */
@@ -236,7 +228,11 @@ export function useVMService() {
     // Optimistic, so Pause enables before the first slice reports.
     setRunning(true);
     emitRef.current?.({ t: "run", ip: lastRegs.current?.ip ?? 0 });
-    client.current?.send({ type: "run", sliceBudget: sliceBudget.current });
+    client.current?.send({
+      type: "run",
+      sliceBudget: stepDelay.current > 0 ? 1 : sliceBudget.current,
+      stepDelayMs: stepDelay.current,
+    });
   }, []);
 
   const pause = useCallback(() => {
@@ -263,15 +259,12 @@ export function useVMService() {
     client.current?.send({ type: "setReg", index, value });
   }, []);
 
-  /** How many speed settings the control offers, and where it sits. */
-  const speedSteps = SLICE_BUDGETS.length;
-  const setSpeed = useCallback((step_: number) => {
-    sliceBudget.current = SLICE_BUDGETS[Math.min(Math.max(step_, 0), SLICE_BUDGETS.length - 1)]!;
+  /** A delay above zero drops the slice to one instruction, so the
+   *  wait is per instruction the way the control reads. */
+  const setStepDelay = useCallback((ms: number) => {
+    stepDelay.current = Math.max(0, ms);
   }, []);
-  const getSpeed = useCallback(
-    () => SLICE_BUDGETS.indexOf(sliceBudget.current as (typeof SLICE_BUDGETS)[number]),
-    [],
-  );
+  const getStepDelay = useCallback(() => stepDelay.current, []);
 
   /**
    * Read memory, resolving with the bytes.
@@ -361,9 +354,8 @@ export function useVMService() {
     setBreakpoints,
     getBreakpoints,
     setReg,
-    setSpeed,
-    getSpeed,
-    speedSteps,
+    setStepDelay,
+    getStepDelay,
     peek,
     memSize,
     poke,
