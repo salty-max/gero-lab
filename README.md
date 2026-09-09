@@ -102,6 +102,49 @@ Source-level features need the image's debug tables. Without them the
 panes degrade to address-level ones and say so, rather than presenting
 controls that do nothing.
 
+## What the browser keeps
+
+Three kinds of state, three lifetimes (§7).
+
+| State | Lives in | Lifetime |
+|---|---|---|
+| The working set | `gero-lab:working-set` | Saved on every edit — losing a tab must not lose work |
+| SRAM | `gero-lab:sram:<entry>` | Per program, so a cart's saved game survives a reload and another program does not see it |
+| Session state | `gero-lab:session` | Breakpoints. Local to this browser, and never in a link |
+
+SRAM is keyed by the entry point's name because that is what the CLI
+keys `<entry>.sav` on: a save survives editing the program, which is the
+point of a save. Keying on the source's contents would orphan it on
+every keystroke. The module also refuses a save whose length does not
+match the loaded program's banks, so a collision cannot land one
+program's banks in another.
+
+Storage that is full, disabled, or holding something an older build
+wrote is not a reason for the lab not to open: every read falls back and
+every write is allowed to fail.
+
+## Sharing
+
+A program shares as a URL carrying the **compressed source set and
+entry point — not a `.gx`** (§8). The link stays readable, and the
+recipient assembles with their own toolchain version rather than running
+an opaque blob from a stranger.
+
+The payload sits in the fragment, which no browser sends to a server, so
+opening a link fetches nothing. Compression is `CompressionStream`, so
+no library is involved. A program that would exceed
+`MAX_SHARE_URL_LENGTH` is **refused** with a download instead — a link
+that arrives truncated half-loads a program, which is worse than one
+that was refused.
+
+The link is shown as well as copied: the clipboard needs a permission
+browsers routinely refuse, and a link built and then thrown away is a
+link that cannot be shared.
+
+Opening a link takes the payload out of the address bar. Leaving it
+there would mean a reload re-opened the sender's program over whatever
+had been edited since.
+
 ## Develop
 
 ```bash

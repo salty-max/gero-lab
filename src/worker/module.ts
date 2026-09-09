@@ -80,6 +80,8 @@ interface Exports {
   gero_vm_set_reg(handle: number, index: number, value: number): number;
   gero_vm_raise_irq(handle: number, vector: number): number;
   gero_vm_take_output(handle: number): number;
+  gero_vm_sram(handle: number): number;
+  gero_vm_load_sram(handle: number, ptr: number, len: number): number;
   gero_vm_breakpoint_add(handle: number, addr: number): number;
   gero_vm_breakpoint_clear(handle: number): number;
 }
@@ -287,6 +289,25 @@ export class GeroModule {
   vmTakeOutput(handle: number): string {
     const r = this.result(this.ex.gero_vm_take_output(handle));
     return r.payload ? this.decoder.decode(r.payload) : "";
+  }
+
+  /** The program's battery-backed banks. Empty when it declares none,
+   *  which is most programs and not an error. */
+  vmSram(handle: number): Uint8Array {
+    const r = this.result(this.ex.gero_vm_sram(handle));
+    if (r.status !== Status.ok) throw new ModuleError(r.status, "gero_vm_sram");
+    return r.payload ?? new Uint8Array(0);
+  }
+
+  /** Restore banks saved by an earlier session.
+   *
+   *  The module refuses a save whose length does not match what this
+   *  program declares, which is what keeps one program's save out of
+   *  another's banks. */
+  vmLoadSram(handle: number, bytes: Uint8Array): void {
+    const ptr = this.put(bytes);
+    const status = this.ex.gero_vm_load_sram(handle, ptr, bytes.length);
+    if (status !== Status.ok) throw new ModuleError(status, "gero_vm_load_sram");
   }
 
   /** Replace the breakpoint set. Clearing first makes the command

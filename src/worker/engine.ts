@@ -131,6 +131,8 @@ export class Engine {
       case "poke": return this.poke(command.addr, command.bytes);
       case "setReg": return this.setReg(command.index, command.value);
       case "irq": return this.irq(command.vector);
+      case "sram": return this.readSram();
+      case "loadSram": return this.writeSram(command.bytes);
     }
   }
 
@@ -291,6 +293,16 @@ export class Engine {
     const { mod, handle } = this.need();
     mod.vmRaiseIrq(handle, vector);
     this.emit({ type: "irq", vector });
+  }
+
+  private readSram(): void {
+    const { mod, handle } = this.need();
+    this.emit({ type: "sram", bytes: mod.vmSram(handle) });
+  }
+
+  private writeSram(bytes: Uint8Array): void {
+    const { mod, handle } = this.need();
+    mod.vmLoadSram(handle, bytes);
   }
 
   private drainOutput(mod: GeroModule, handle: number): void {

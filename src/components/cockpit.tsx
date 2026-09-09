@@ -5,7 +5,7 @@
  * transport between them — with the panes wired to worker events.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { Pause, Play, RotateCcw, SkipForward, Wrench } from "lucide-react";
 
 import { Editor } from "@/components/editor";
@@ -20,27 +20,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
+import { ShareButton } from "@/components/share-button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Separator } from "@/components/ui/separator";
-import { loadSamples, type Sample } from "@/samples";
+import { usePersistedSession } from "@/state/persisted-session";
 import { useSession } from "@/state/session";
+import { Persistence, browserStore } from "@/state/storage";
+import { useWorkspace } from "@/state/workspace";
 import { addrOfLine, lineAt } from "@/worker/debug";
-import type { SourceFile } from "@/worker/protocol";
-
-/** What the editor holds: a sample's files, with the edits made to
- *  them. Switching samples replaces it wholesale — the lab is a
- *  playground, not a workspace with unsaved work to protect. */
-interface Buffer {
-  sample: Sample;
-  files: SourceFile[];
-  open: string;
-}
-
-const asBuffer = (sample: Sample): Buffer => ({
-  sample,
-  files: sample.files,
-  open: sample.entry,
-});
 
 /** How long a buffer must sit still before it is checked. Long enough
  *  that typing a word is one check, short enough to feel immediate. */
@@ -48,21 +35,14 @@ const CHECK_DEBOUNCE_MS = 300;
 
 export function Cockpit() {
   const session = useSession();
-  const { check } = session;
-  const [samples, setSamples] = useState<Sample[] | null>(null);
-  const [samplesError, setSamplesError] = useState<string | null>(null);
-  const [buffer, setBuffer] = useState<Buffer | null>(null);
+  const { build, check, writeSram } = session;
+  // One store for the page: the hooks below would otherwise each build
+  // their own and re-run every render.
+  const persistence = useMemo(() => new Persistence(browserStore()), []);
+  const workspace = useWorkspace(persistence);
+  const { buffer, samples } = workspace;
 
-  useEffect(() => {
-    loadSamples()
-      .then((loaded) => {
-        setSamples(loaded);
-        if (loaded[0]) setBuffer(asBuffer(loaded[0]));
-      })
-      .catch((err: unknown) =>
-        setSamplesError(err instanceof Error ? err.message : String(err)),
-      );
-  }, []);
+  usePersistedSession(session, buffer?.entry ?? null, persistence);
 
   const currentIp = session.pause?.ip ?? session.regs?.ip ?? null;
   const currentLine = currentIp === null ? null : lineAt(session.debug, currentIp);
@@ -83,15 +63,18 @@ export function Cockpit() {
     if (addr !== null) toggleBreakpointAt(addr);
   };
 
-  const edit = (text: string) => {
-    setBuffer((prev) =>
-      prev === null
-        ? prev
-        : {
-            ...prev,
-            files: prev.files.map((f) => (f.name === prev.open ? { ...f, text } : f)),
-          },
-    );
+  /** Build, then hand back the banks this program saved last time.
+   *
+   *  The worker queues commands behind one another, so the restore is
+   *  dispatched after the build has loaded the image it belongs to —
+   *  no event needed to sequence them. The module refuses a save whose
+   *  length does not match, which is what keeps one program's banks out
+   *  of another's. */
+  const buildAndRestoreSram = () => {
+    if (!buffer) return;
+    build(buffer.files, buffer.entry, buffer.lang);
+    const saved = persistence.loadSram(buffer.entry);
+    if (saved) writeSram(saved);
   };
 
   // Diagnostics follow the buffer rather than the last build (§5). The
@@ -100,22 +83,17 @@ export function Cockpit() {
   useEffect(() => {
     if (!buffer) return;
     const timer = setTimeout(
-      () => check(buffer.files, buffer.sample.entry, buffer.sample.lang),
+      () => { check(buffer.files, buffer.entry, buffer.lang); },
       CHECK_DEBOUNCE_MS,
     );
     return () => clearTimeout(timer);
   }, [buffer, check]);
 
-  if (session.phase === "failed" || samplesError) {
-    return (
-      <Failure
-        title={samplesError ? "The samples did not load" : "The engine did not start"}
-        detail={samplesError ?? session.connectionError ?? ""}
-      />
-    );
+  if (session.phase === "failed") {
+    return <Failure title="The engine did not start" detail={session.connectionError ?? ""} />;
   }
 
-  if (!buffer || !samples) {
+  if (!buffer) {
     return (
       <Empty className="h-full">
         <EmptyHeader>
@@ -128,7 +106,7 @@ export function Cockpit() {
   const open = buffer.files.find((f) => f.name === buffer.open) ?? buffer.files[0]!;
 
   return (
-    <div className="grid h-full min-h-0 grid-rows-[minmax(0,2fr)_auto_minmax(0,3fr)] gap-3 p-3">
+    <div className="grid h-full min-h-0 grid-rows-[minmax(0,2fr)_auto_auto_minmax(0,3fr)] gap-3 p-3">
       <Editor
         samples={samples}
         buffer={buffer}
@@ -137,17 +115,14 @@ export function Cockpit() {
         breakpoints={session.breakpoints}
         debug={session.debug}
         diagnostics={session.diagnostics}
-        onChooseSample={(s) => setBuffer(asBuffer(s))}
-        onOpenFile={(name) => setBuffer({ ...buffer, open: name })}
-        onEdit={edit}
+        onChooseSample={workspace.chooseSample}
+        onOpenFile={workspace.openFile}
+        onEdit={workspace.edit}
         onToggleBreakpoint={toggleBreakpointAtLine}
       />
 
       <div className="flex shrink-0 flex-wrap items-center gap-3 rounded-xl bg-card px-3 py-2 ring-1 ring-foreground/10">
-        <Button
-          size="sm"
-          onClick={() => session.build(buffer.files, buffer.sample.entry, buffer.sample.lang)}
-        >
+        <Button size="sm" onClick={() => { buildAndRestoreSram(); }}>
           <Wrench />
           Build
         </Button>
@@ -179,6 +154,7 @@ export function Cockpit() {
           <RotateCcw />
           Reset
         </Button>
+        <ShareButton buffer={buffer} />
 
         <div className="ml-auto flex items-center gap-3">
           {session.pause && (
@@ -194,6 +170,15 @@ export function Cockpit() {
           <CurrentLocation ip={currentIp} debug={session.debug} />
         </div>
       </div>
+
+      {/* A link that would not decode, or samples that would not load.
+          Neither stops the lab opening on something else, so it is a
+          notice rather than a dead end. */}
+      {workspace.error && (
+        <p className="rounded-lg bg-destructive/10 px-3 py-1.5 text-xs text-destructive">
+          {workspace.error}
+        </p>
+      )}
 
       <div className="grid min-h-0 grid-cols-1 gap-3 lg:grid-cols-3">
         <RegisterPane regs={session.regs} onSetReg={session.setReg} />

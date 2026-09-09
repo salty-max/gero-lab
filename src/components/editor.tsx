@@ -24,6 +24,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { Sample } from "@/samples";
+import type { Buffer } from "@/state/workspace";
 import { addrOfLine, type DebugInfo } from "@/worker/debug";
 import type { Diagnostic, SourceFile } from "@/worker/protocol";
 
@@ -74,7 +75,7 @@ export function Editor({
   onToggleBreakpoint,
 }: {
   samples: Sample[];
-  buffer: { sample: Sample; files: SourceFile[]; open: string };
+  buffer: Buffer;
   open: SourceFile;
   currentLine: { file: string; line: number } | null;
   breakpoints: number[];
@@ -103,7 +104,7 @@ export function Editor({
     <section className="flex min-h-0 flex-col overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
       <header className="flex h-9 shrink-0 items-center gap-2 border-b px-2">
         <Select
-          value={buffer.sample.name}
+          value={buffer.sample}
           onValueChange={(name) => {
             const next = samples.find((s) => s.name === name);
             if (next) onChooseSample(next);
@@ -113,6 +114,14 @@ export function Editor({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            {/* A program that came from a link or a previous session
+                is not a sample, and the picker would otherwise show
+                whichever sample name sorted first. */}
+            {!samples.some((s) => s.name === buffer.sample) && (
+              <SelectItem value={buffer.sample} disabled>
+                {buffer.sample}
+              </SelectItem>
+            )}
             {samples.map((s) => (
               <SelectItem key={s.name} value={s.name}>
                 {s.name}
@@ -122,7 +131,7 @@ export function Editor({
         </Select>
 
         <Badge variant="outline" className="font-mono text-[10px] uppercase">
-          {buffer.sample.lang}
+          {buffer.lang}
         </Badge>
 
         {/* One tab per file. A single-file sample still gets its tab, so
@@ -132,7 +141,7 @@ export function Editor({
             {buffer.files.map((f) => (
               <TabsTrigger key={f.name} value={f.name} className="gap-1.5 font-mono text-[11px]">
                 {f.name}
-                {f.name === buffer.sample.entry && (
+                {f.name === buffer.entry && (
                   <span className="text-[9px] text-symbol">entry</span>
                 )}
                 {diagnostics.some((d) => d.file === f.name && d.severity === "error") && (

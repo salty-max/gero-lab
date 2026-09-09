@@ -14,7 +14,7 @@
  * service-worker cache — the classic way a deployed web app breaks
  * after a release — into a clear error rather than silent misbehaviour.
  */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 /** Which front-end a source file belongs to. Mirrors the module's `lang`. */
 export type Lang = "gas" | "gr";
@@ -88,7 +88,12 @@ export type Command =
   | { type: "peek"; addr: number; len: number }
   | { type: "poke"; addr: number; bytes: Uint8Array }
   | { type: "setReg"; index: number; value: number }
-  | { type: "irq"; vector: number };
+  | { type: "irq"; vector: number }
+  /** Read the program's battery-backed banks, for persisting them. */
+  | { type: "sram" }
+  /** Restore banks from an earlier session. The module refuses a save
+   *  whose length does not match what the loaded program declares. */
+  | { type: "loadSram"; bytes: Uint8Array };
 
 export type CommandType = Command["type"];
 
@@ -114,6 +119,9 @@ export type Event =
   | { type: "trace"; ip: number; steps: number }
   | { type: "irq"; vector: number }
   | { type: "bp"; addrs: number[] }
+  /** The program's battery-backed banks. Empty when it declares none,
+   *  which is most programs and not an error. */
+  | { type: "sram"; bytes: Uint8Array }
   | { type: "error"; message: string; command?: CommandType };
 
 export type EventType = Event["type"];

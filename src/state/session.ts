@@ -38,6 +38,9 @@ export interface SessionState {
   pause: { reason: PauseReason; ip: number; fault?: number } | null;
   breakpoints: number[];
   memory: { addr: number; bytes: Uint8Array } | null;
+  /** The banks the loaded program declares, as of the last `readSram`.
+   *  Empty for a program that declares none, which is most of them. */
+  sram: Uint8Array;
 }
 
 const EMPTY: SessionState = {
@@ -52,6 +55,7 @@ const EMPTY: SessionState = {
   pause: null,
   breakpoints: [],
   memory: null,
+  sram: new Uint8Array(0),
 };
 
 export interface Session extends SessionState {
@@ -66,6 +70,8 @@ export interface Session extends SessionState {
   poke(addr: number, bytes: Uint8Array): void;
   setReg(index: number, value: number): void;
   raiseIrq(vector: number): void;
+  readSram(): void;
+  writeSram(bytes: Uint8Array): void;
   clearOutput(): void;
 }
 
@@ -125,6 +131,8 @@ export function useSession(): Session {
             return { ...prev, memory: { addr: event.addr, bytes: event.bytes } };
           case "bp":
             return { ...prev, breakpoints: event.addrs };
+          case "sram":
+            return { ...prev, sram: event.bytes };
           case "error":
             // A command that failed is not a dead session: the message
             // goes to the log and the cockpit stays usable.
@@ -172,6 +180,8 @@ export function useSession(): Session {
       poke: (addr: number, bytes: Uint8Array) => send({ type: "poke", addr, bytes }),
       setReg: (index: number, value: number) => send({ type: "setReg", index, value }),
       raiseIrq: (vector: number) => send({ type: "irq", vector }),
+      readSram: () => send({ type: "sram" }),
+      writeSram: (bytes: Uint8Array) => send({ type: "loadSram", bytes }),
       clearOutput: () => setState((p) => ({ ...p, output: "" })),
     }),
     [send],
