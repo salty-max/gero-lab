@@ -355,5 +355,72 @@ end
     await engine.receive({ type: "run", sliceBudget: 1 });
     expect(waits).toEqual([0]);
   });
+
+  it("answers each peek with the id it was asked under", async () => {
+    const { engine, of } = harness();
+    await engine.receive({ type: "init" });
+    await engine.receive({
+      type: "build",
+      files: [{ name: "main.gas", text: HELLO_GAS }],
+      entry: "main.gas",
+      lang: "gas",
+    });
+
+    // Two reads of the same address with different lengths: matching an
+    // answer by address alone would let each take the other's bytes.
+    await engine.receive({ type: "peek", addr: 0x1200, len: 4, requestId: 1 });
+    await engine.receive({ type: "peek", addr: 0x1200, len: 16, requestId: 2 });
+
+    const answers = of("mem");
+    expect(answers.find((m) => m.requestId === 1)?.bytes).toHaveLength(4);
+    expect(answers.find((m) => m.requestId === 2)?.bytes).toHaveLength(16);
+  });
+
+  it("reads to the end of the address space and no further", async () => {
+    const { engine, of } = harness();
+    await engine.receive({ type: "init" });
+    await engine.receive({
+      type: "build",
+      files: [{ name: "main.gas", text: HELLO_GAS }],
+      entry: "main.gas",
+      lang: "gas",
+    });
+
+    // The pane asks for 256 bytes from 0xFF80, which runs 128 past the
+    // top of the 64 KiB the ISA maps.
+    await engine.receive({ type: "peek", addr: 0xff80, len: 256, requestId: 7 });
+    expect(of("mem").at(-1)?.bytes).toHaveLength(128);
+  });
+
+  it("answers a peek while a program is running", async () => {
+    const events: Event[] = []
+    let ticks = 0
+    const engine: Engine = new Engine(
+      (e) => events.push(e),
+      () => GeroModule.instantiate(readFileSync(WASM)),
+      async () => {
+        ticks += 1
+        if (ticks === 2) engine.receive({ type: "peek", addr: 0x1200, len: 4, requestId: 9 })
+        if (ticks === 4) await engine.receive({ type: "pause" })
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      },
+    );
+    await engine.receive({ type: "init" });
+    await engine.receive({
+      type: "build",
+      files: [{ name: "main.gas", text: "start:\n  jmp start\n" }],
+      entry: "main.gas",
+      lang: "gas",
+    });
+
+    await engine.receive({ type: "run", sliceBudget: 1 });
+
+    // Queued behind `run` the answer would arrive when the program
+    // stopped, which is what froze every pane mid-run.
+    const answer = events.find((e) => e.type === "mem" && e.requestId === 9);
+    expect(answer).toBeDefined();
+    const pausedAt = events.findIndex((e) => e.type === "paused");
+    expect(events.indexOf(answer!)).toBeLessThan(pausedAt);
+  });
 });
 

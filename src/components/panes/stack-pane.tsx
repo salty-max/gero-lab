@@ -15,6 +15,7 @@ const INITIAL_BASE = u16(STACK_TOP_LAST_ROW_START - (ROWS - 1) * ROW) // 0xFF80
 
 export function StackPane({ highlightAddrs }: StackPaneProps) {
   const vm = useVM()
+  const { peek, memSize: readMemSize } = vm
   const sp = u16(vm.snap?.sp ?? 0)
   const fp = u16(vm.snap?.fp ?? 0)
   const ip = u16(vm.snap?.ip ?? 0)
@@ -26,17 +27,17 @@ export function StackPane({ highlightAddrs }: StackPaneProps) {
 
   useEffect(() => {
     let off = false
-    vm.memSize()
+    readMemSize()
       .then((n) => !off && setMemSize(n))
       .catch(() => !off && setMemSize(0))
     return () => {
       off = true
     }
-  }, [vm])
+  }, [readMemSize])
 
   useEffect(() => {
     let off = false
-    vm.peek(base, WINDOW_LEN)
+    peek(base, WINDOW_LEN)
       .then((d) => {
         if (!off) {
           setBuf(d)
@@ -50,7 +51,7 @@ export function StackPane({ highlightAddrs }: StackPaneProps) {
     return () => {
       off = true
     }
-  }, [vm, base, sp, fp, ip])
+  }, [peek, base, sp, fp, ip])
 
   const rows = useMemo(() => {
     if (!buf) return []

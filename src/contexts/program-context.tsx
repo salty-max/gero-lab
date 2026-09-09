@@ -59,6 +59,9 @@ export type ProgramApi = {
   programBase: number;
   /** Where the VM booted to, from the snapshot after a load. */
   entry: number;
+  /** The address the last build's image starts executing at, fixed
+   *  until the next build. Null before there is one. */
+  entryAddress: number | null;
   /** Start the next run somewhere else. `ip` is a register, and the
    *  module lets a host write it. */
   setEntry(addr: number): void;
@@ -75,6 +78,7 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
   const [openName, setOpenName] = useState("main.gas");
   const [sourceVersion, setSourceVersion] = useState(0);
   const [lastBuild, setLastBuild] = useState<ProgramBuild | null>(null);
+  const [entryAddress, setEntryAddress] = useState<number | null>(null);
   const [building, setBuilding] = useState(false);
   const persistence = useMemo(() => new Persistence(browserStore()), []);
   /** Set once the restore has run, so the first render does not save an
@@ -165,6 +169,10 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
         debug: result.debugJson ? parseDebugInfo(result.debugJson) : NO_DEBUG_INFO,
       };
       setLastBuild(out);
+      // The first line the disassembler prints with an entry marker is
+      // where this image begins; the module put it there.
+      const marked = /^([0-9A-Fa-f]{4}):.*; entry point/m.exec(out.disassembly);
+      setEntryAddress(marked?.[1] ? Number.parseInt(marked[1], 16) : null);
       if (out.image.length > 0) {
         const saved = persistence.loadSram(entryName);
         if (saved) vm.writeSram(saved);
@@ -199,6 +207,7 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
       building,
       programBase: 0,
       entry: vm.snap?.ip ?? 0,
+      entryAddress,
       setEntry,
     }),
     [
@@ -214,6 +223,7 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
       lastBuild,
       building,
       vm.snap?.ip,
+      entryAddress,
       setEntry,
     ],
   );

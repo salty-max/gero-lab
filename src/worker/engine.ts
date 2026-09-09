@@ -79,13 +79,24 @@ export class Engine {
     private readonly nextTick: Yield = (ms) => new Promise((r) => setTimeout(r, ms)),
   ) {}
 
-  /** Commands the engine runs at once, ahead of anything queued.
+  /**
+   * Commands the engine runs at once, ahead of anything queued.
    *
-   *  `pause` only sets a flag the run loop reads at its next slice
-   *  boundary, so running it immediately cannot land mid-slice — and
-   *  queueing it behind `run`, which does not resolve until the program
-   *  stops, is the one way to make it unreachable. */
-  private static readonly immediate: ReadonlySet<Command["type"]> = new Set(["pause"]);
+   * `run` does not resolve until the program stops, so anything queued
+   * behind it waits that long. For `pause` that made it unreachable;
+   * for the reads the cockpit does while a program runs it froze every
+   * pane on the bytes it last saw.
+   *
+   * These are safe to run between slices: `pause` sets a flag the loop
+   * reads at its next boundary, and the rest read state or move a
+   * breakpoint, none of which advances the machine.
+   */
+  private static readonly immediate: ReadonlySet<Command["type"]> = new Set([
+    "pause",
+    "peek",
+    "sram",
+    "breakpoints",
+  ]);
 
   /**
    * Take one command from the host.
@@ -124,7 +135,7 @@ export class Engine {
       case "pause": return this.pause();
       case "step": return this.step(command.count ?? 1);
       case "breakpoints": return this.breakpoints(command.addrs);
-      case "peek": return this.peek(command.addr, command.len);
+      case "peek": return this.peek(command.addr, command.len, command.requestId);
       case "poke": return this.poke(command.addr, command.bytes);
       case "setReg": return this.setReg(command.index, command.value);
       case "irq": return this.irq(command.vector);
@@ -276,9 +287,18 @@ export class Engine {
     this.emit({ type: "bp", addrs: [...addrs] });
   }
 
-  private peek(addr: number, len: number): void {
+  private peek(addr: number, len: number, requestId?: number): void {
     const { mod, handle } = this.need();
-    this.emit({ type: "mem", addr, bytes: mod.vmPeek(handle, addr, len) });
+    // A read runs to the end of the address space, no further: the ISA
+    // maps 64 KiB and a length past it is the caller's arithmetic, not
+    // a region to invent.
+    const clamped = Math.min(len, 0x1_0000 - addr);
+    this.emit({
+      type: "mem",
+      addr,
+      bytes: mod.vmPeek(handle, addr, clamped),
+      ...(requestId === undefined ? {} : { requestId }),
+    });
   }
 
   private poke(addr: number, bytes: Uint8Array): void {

@@ -24,32 +24,34 @@ export function MemoryPane({
   onJump,
 }: MemoryPaneProps) {
   const vm = useVM()
+  const { peek, memSize: readMemSize, on: onVmEvent } = vm
+  const ip = u16(vm.snap?.ip ?? 0)
   const [buf, setBuf] = useState<Uint8Array | null>(null)
   const [memSize, setMemSize] = useState<number>(0)
 
   useEffect(() => {
-    vm.memSize()
+    readMemSize()
       .then(setMemSize)
       .catch(() => setMemSize(0))
-    vm.peek(base, length)
+    peek(base, length)
       .then((d) => {
         setBuf(d)
       })
       .catch(() => {
         setBuf(null)
       })
-  }, [vm, base, length])
+  }, [peek, readMemSize, base, length, ip])
 
   // Refresh on memory writes within our visible window
   useEffect(() => {
-    const off = vm.on('poke', (e) => {
+    const off = onVmEvent('poke', (e) => {
       const start = base
       const end = base + length - 1
       const eStart = e.addr >>> 0
       const eEnd = (e.addr + Math.max(0, e.len - 1)) >>> 0
       const overlaps = !(eEnd < start || eStart > end)
       if (!overlaps) return
-      vm.peek(base, length)
+      peek(base, length)
         .then((d) => {
           setBuf(d)
         })
@@ -64,7 +66,7 @@ export function MemoryPane({
         // ignore
       }
     }
-  }, [vm, base, length])
+  }, [onVmEvent, peek, base, length])
 
   const rows = useMemo(() => {
     if (!buf) return []

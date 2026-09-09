@@ -66,6 +66,8 @@ export function useVMService() {
    *  module honours it directly. */
   const stepDelay = useRef(DEFAULT_STEP_DELAY_MS);
   const breakpoints = useRef<number[]>([]);
+  /** Numbers a peek's answer back to its request. */
+  const peekId = useRef(0);
   /** The last register file seen, for the events the worker reports as
    *  a value rather than as a change. */
   const lastRegs = useRef<Registers | null>(null);
@@ -276,9 +278,9 @@ export function useVMService() {
    * Read memory, resolving with the bytes.
    *
    * The worker answers a peek with a `mem` event rather than a return
-   * value, so this waits for the one that names the address it asked
-   * for — two panes reading different windows must not take each
-   * other's answer.
+   * value, so each request carries an id the answer echoes. Matching on
+   * the address alone is not enough: two panes reading the same address
+   * with different lengths take each other's bytes.
    */
   const peek = useCallback(
     (addr: number, len: number) =>
@@ -288,12 +290,13 @@ export function useVMService() {
           reject(new Error("the engine is not connected"));
           return;
         }
+        const requestId = ++peekId.current;
         const off = engine.on("mem", (event) => {
-          if (event.addr !== addr) return;
+          if (event.requestId !== requestId) return;
           off();
           resolve(event.bytes);
         });
-        engine.send({ type: "peek", addr, len });
+        engine.send({ type: "peek", addr, len, requestId });
       }),
     [],
   );

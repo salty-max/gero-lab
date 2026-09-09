@@ -312,7 +312,7 @@ function LogRow({ entry }: LogRowProps) {
         // lines, so a program printing `[error]` still reads as output.
         return (
           <span className="font-mono whitespace-pre-wrap text-foreground">
-            {e.details.text.replace(/\n+$/, '')}
+            {e.details.text.replace(/\n$/, '')}
           </span>
         )
       case 'error':

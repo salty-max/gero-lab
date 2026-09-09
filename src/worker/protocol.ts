@@ -93,7 +93,10 @@ export type Command =
   /** Replace the breakpoint set wholesale — idempotent, so the UI need
    *  not track what the worker already has. */
   | { type: "breakpoints"; addrs: number[] }
-  | { type: "peek"; addr: number; len: number }
+  /** `requestId` is echoed back on the answer. Two panes reading the
+   *  same address with different lengths would otherwise take each
+   *  other's bytes. */
+  | { type: "peek"; addr: number; len: number; requestId?: number }
   | { type: "poke"; addr: number; bytes: Uint8Array }
   | { type: "setReg"; index: number; value: number }
   | { type: "irq"; vector: number }
@@ -130,7 +133,7 @@ export type Event =
     }
   | { type: "paused"; reason: PauseReason; ip: number; fault?: number; steps: number }
   | { type: "snapshot"; regs: Registers }
-  | { type: "mem"; addr: number; bytes: Uint8Array }
+  | { type: "mem"; addr: number; bytes: Uint8Array; requestId?: number }
   | { type: "output"; text: string }
   | { type: "trace"; ip: number; steps: number }
   | { type: "irq"; vector: number }

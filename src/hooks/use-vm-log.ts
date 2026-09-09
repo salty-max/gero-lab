@@ -32,6 +32,28 @@ export type LogEntry =
 
 const short = (s: string, n = 120) => (s.length > n ? s.slice(0, n) + '...' : s)
 
+/**
+ * What ends a run of program output.
+ *
+ * Only a change in the program's flow does. The snapshots, ticks and
+ * memory reads a running cockpit produces between two printed
+ * characters are not something the reader is meant to see the output
+ * broken around.
+ */
+const CLOSES_OUTPUT = new Set<LogKind>([
+  'ready',
+  'run',
+  'load',
+  'paused',
+  'fault',
+  'error',
+  'info',
+])
+
+/** Program output on one line: newlines are what the program printed,
+ *  not row breaks in the log. */
+const printable = (s: string) => s.replace(/\n/g, '⏎').replace(/⏎$/, '')
+
 export type UseVmLogOpts = {
   max?: number
   includeTick?: boolean
@@ -93,11 +115,14 @@ export function useVMLog(
     }
   )
   const counter = useRef(0)
+  /** The output entry still being written to, if one is open. */
+  const openOutput = useRef<number | null>(null)
   const tickCount = useRef(0)
   const seenReady = useRef(false)
 
   const push = useCallback(
     (e: LogEntry) => {
+      if (CLOSES_OUTPUT.has(e.kind)) openOutput.current = null
       setEntries((prev) => {
         const next = [...prev, e]
         if (next.length > max) next.splice(0, next.length - max)
@@ -203,15 +228,39 @@ export function useVMLog(
     // What the program printed, and what a command refused. Two
     // different things, and telling them apart is the point of the
     // console — a program printing `[error]` is program output.
+    // A program prints a character at a time, and at one instruction
+    // per slice that is one event each. They join onto the entry
+    // already open, the way a terminal does — otherwise a line of
+    // output is a dozen rows and its newline is an empty one.
     unsub.push(
       on('output', (e) => {
-        push({
-          id: ++counter.current,
-          t: Date.now(),
-          kind: 'output',
-          summary: short(e.text.replace(/\n+$/, '')),
-          details: { text: e.text },
-        })
+        const openId = openOutput.current
+        if (openId === null) {
+          // Allocated outside the updater: React may call an updater
+          // more than once, and an id minted inside one drifts.
+          const id = ++counter.current
+          openOutput.current = id
+          push({
+            id,
+            t: Date.now(),
+            kind: 'output',
+            summary: short(printable(e.text)),
+            details: { text: e.text },
+          })
+          return
+        }
+        setEntries((prev) =>
+          prev.map((entry) => {
+            if (entry.id !== openId || entry.kind !== 'output') return entry
+            const text = entry.details.text + e.text
+            return {
+              ...entry,
+              t: Date.now(),
+              summary: short(printable(text)),
+              details: { text },
+            }
+          })
+        )
       })
     )
 
@@ -296,7 +345,7 @@ export function useVMLog(
     return () => {
       unsub.forEach((u) => u())
     }
-  }, [on, includeTick, tickSample, push])
+  }, [on, includeTick, tickSample, push, max])
 
   // If the VM is already ready (e.g., due to effect ordering or HMR),
   // emit a single ready entry on mount.

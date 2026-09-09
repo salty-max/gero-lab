@@ -1,3 +1,4 @@
+import { useProgram } from '@/contexts/program-context'
 import { useVM } from '@/contexts/vm-context'
 import { RegistersPane } from './panes/register-pane'
 import { MemoryPane } from './panes/memory-pane'
@@ -15,8 +16,17 @@ import { Loader2Icon } from 'lucide-react'
 
 export function Cockpit() {
   const vm = useVM()
+  const program = useProgram()
   const [breakpoints, setBreakpoints] = useState<number[]>([])
-  const [memBase, setMemBase] = useState(0x0000)
+  const entry = program.entryAddress
+  /** Where the user jumped, and which program they jumped in. A jump
+   *  made against an older image is not carried into the next one. */
+  const [jump, setJump] = useState<{ forEntry: number | null; addr: number } | null>(null)
+
+  // The view follows the program: a `.gr` image sits at its `org`, and
+  // a view pinned to 0x0000 is a screen of zeros.
+  const memBase =
+    jump && jump.forEntry === entry ? jump.addr : u16((entry ?? 0) & 0xfff0)
 
   const log = useVMLog(
     vm.on,
@@ -44,9 +54,12 @@ export function Cockpit() {
   }
 
   return (
-    <div className="flex flex-col gap-4 bg-background">
-      <ScrollArea>
-        <main className={cn('relative px-6 max-h-[calc(100vh-68px-40px)]')}>
+    <div className="flex flex-col bg-background min-h-0 h-full">
+      <div className={cn('px-6 py-4 shrink-0 bg-background', loaded && 'z-20')}>
+        <ToolBar />
+      </div>
+      <ScrollArea className="min-h-0 flex-1">
+        <main className={cn('relative px-6 pb-4')}>
           {!loaded && (
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-6 bg-background/70 backdrop-blur-sm">
               <div className="text-center space-y-2">
@@ -62,15 +75,6 @@ export function Cockpit() {
           )}
           <div
             className={cn(
-              'sticky top-0 left-0 -mx-6 py-4 bg-background',
-              vm.snap && 'z-20'
-            )}
-          >
-            <ToolBar />
-          </div>
-
-          <div
-            className={cn(
               'flex flex-col gap-3 h-full transition-all duration-200',
               // Apply visual de-emphasis when not loaded
               !loaded && 'blur-sm pointer-events-none select-none'
@@ -84,7 +88,7 @@ export function Cockpit() {
                   (x): x is number => typeof x === 'number'
                 )}
                 onJump={(addr) => {
-                  setMemBase(u16(addr))
+                  setJump({ forEntry: entry, addr: u16(addr) })
                 }}
               />
               <div
