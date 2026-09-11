@@ -24,17 +24,25 @@ function AppShell() {
   const route = useRoute();
   const program = useProgram();
 
-  const openGero = (code: string) => {
+  const openSnippet = async (code: string, lang: "gero" | "asm") => {
     const text = code.endsWith("\n") ? code : `${code}\n`;
-    program.setProgram([{ name: "main.gr", text }], "main.gr", "gr");
+    const entry = lang === "gero" ? "main.gr" : "main.gas";
+    const files = [{ name: entry, text }];
+    const out = await program.loadProgram(files, entry, lang === "gero" ? "gr" : "gas");
     globalThis.location.hash = "/";
-    toast.message("Opened in the lab — Run from the toolbar.");
+    if (out.image.length > 0) {
+      toast.message("Opened in the lab — Run from the toolbar.");
+    }
   };
 
   return (
     <div className="grid h-screen grid-rows-[68px_minmax(0,1fr)_40px] gap-0">
       <Header route={route} />
-      {route.view === "book" ? <BookView slug={route.slug} onOpenGero={openGero} /> : <Cockpit />}
+      {route.view === "book" ? (
+        <BookView slug={route.slug} onOpenSnippet={(code, lang) => void openSnippet(code, lang)} />
+      ) : (
+        <Cockpit />
+      )}
       <Footer />
     </div>
   );

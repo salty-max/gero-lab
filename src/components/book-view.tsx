@@ -10,15 +10,16 @@ import {
 } from "@/book";
 import { parseMarkdown, type Block, type Inline } from "@/book/markdown";
 import { Button } from "@/components/ui/button";
+import { HighlightedCode } from "@/components/highlighted-code";
 import { hrefFor } from "@/lib/route";
 import { cn } from "@/lib/utils";
 
 type BookViewProps = {
   slug: string;
-  onOpenGero: (code: string) => void;
+  onOpenSnippet: (code: string, lang: "gero" | "asm") => void;
 };
 
-export function BookView({ slug, onOpenGero }: BookViewProps) {
+export function BookView({ slug, onOpenSnippet }: BookViewProps) {
   const [book, setBook] = useState<Book | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,7 +76,7 @@ export function BookView({ slug, onOpenGero }: BookViewProps) {
       </nav>
       <div className="min-h-0 overflow-y-auto">
         <article className="mx-auto flex max-w-3xl flex-col gap-4 px-6 py-8">
-          <ChapterBody chapter={chapter} book={book} onOpenGero={onOpenGero} />
+          <ChapterBody chapter={chapter} book={book} onOpenSnippet={onOpenSnippet} />
           <ChapterPager book={book} chapter={chapter} />
         </article>
       </div>
@@ -86,11 +87,11 @@ export function BookView({ slug, onOpenGero }: BookViewProps) {
 function ChapterBody({
   chapter,
   book,
-  onOpenGero,
+  onOpenSnippet,
 }: {
   chapter: Chapter;
   book: Book;
-  onOpenGero: (code: string) => void;
+  onOpenSnippet: (code: string, lang: "gero" | "asm") => void;
 }) {
   const slugs = useMemo(
     () => new Set(book.chapters.map((c) => c.slug).filter(Boolean)),
@@ -104,7 +105,7 @@ function ChapterBody({
           key={`${chapter.slug}:${String(i)}`}
           block={block}
           slugs={slugs}
-          onOpenGero={onOpenGero}
+          onOpenSnippet={onOpenSnippet}
         />
       ))}
     </>
@@ -114,11 +115,11 @@ function ChapterBody({
 function BlockView({
   block,
   slugs,
-  onOpenGero,
+  onOpenSnippet,
 }: {
   block: Block;
   slugs: ReadonlySet<string>;
-  onOpenGero: (code: string) => void;
+  onOpenSnippet: (code: string, lang: "gero" | "asm") => void;
 }) {
   switch (block.type) {
     case "heading": {
@@ -157,33 +158,47 @@ function BlockView({
     case "hr":
       return <hr className="border-border" />;
     case "fence":
-      return <Fence block={block} onOpenGero={onOpenGero} />;
+      return <Fence block={block} onOpenSnippet={onOpenSnippet} />;
   }
+}
+
+function fenceHighlightLang(lang: string): "gr" | "gas" | null {
+  if (lang === "gero" || lang === "gr") return "gr";
+  if (lang === "asm" || lang === "gas") return "gas";
+  return null;
 }
 
 function Fence({
   block,
-  onOpenGero,
+  onOpenSnippet,
 }: {
   block: Extract<Block, { type: "fence" }>;
-  onOpenGero: (code: string) => void;
+  onOpenSnippet: (code: string, lang: "gero" | "asm") => void;
 }) {
-  const openable = block.lang === "gero" && isOpenableGero(block.code);
+  const openLang: "gero" | "asm" | null =
+    (block.lang === "gero" || block.lang === "asm") && isOpenableGero(block.code)
+      ? block.lang
+      : null;
+  const colour = fenceHighlightLang(block.lang);
   const label = block.lang === "" ? "output" : block.lang;
   return (
     <div className="overflow-hidden rounded-md border border-border bg-card">
       <div className="flex items-center justify-between border-b border-border px-3 py-1.5 text-xs text-muted-foreground">
         <span>{label}</span>
-        {openable ? (
-          <Button size="sm" variant="ghost" onClick={() => onOpenGero(block.code)}>
+        {openLang ? (
+          <Button size="sm" variant="ghost" onClick={() => onOpenSnippet(block.code, openLang)}>
             <PlayIcon />
             Open in lab
           </Button>
         ) : null}
       </div>
-      <pre className="overflow-x-auto p-3 text-sm leading-6">
-        <code>{block.code}</code>
-      </pre>
+      {colour ? (
+        <HighlightedCode code={block.code} lang={colour} />
+      ) : (
+        <pre className="overflow-x-auto p-3 text-sm leading-6">
+          <code>{block.code}</code>
+        </pre>
+      )}
     </div>
   );
 }
