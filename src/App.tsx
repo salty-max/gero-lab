@@ -32,7 +32,7 @@ function AppShell() {
   };
 
   return (
-    <div className="grid h-screen grid-rows-[68px_auto_40px] gap-0">
+    <div className="grid h-screen grid-rows-[68px_minmax(0,1fr)_40px] gap-0">
       <Header route={route} />
       {route.view === "book" ? <BookView slug={route.slug} onOpenGero={openGero} /> : <Cockpit />}
       <Footer />

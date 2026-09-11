@@ -10,7 +10,6 @@ import {
 } from "@/book";
 import { parseMarkdown, type Block, type Inline } from "@/book/markdown";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { hrefFor } from "@/lib/route";
 import { cn } from "@/lib/utils";
 
@@ -56,32 +55,30 @@ export function BookView({ slug, onOpenGero }: BookViewProps) {
   }
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 md:grid-cols-[16rem_1fr]">
-      <nav className="hidden border-r border-border md:block">
-        <ScrollArea className="h-full">
-          <ol className="flex flex-col gap-1 p-4 text-sm">
-            {book.chapters.map((c) => (
-              <li key={c.file}>
-                <a
-                  href={hrefFor({ view: "book", slug: c.slug })}
-                  className={cn(
-                    "block rounded-md px-2 py-1.5 hover:bg-accent",
-                    c.slug === chapter.slug && "bg-accent text-gero",
-                  )}
-                >
-                  {c.title}
-                </a>
-              </li>
-            ))}
-          </ol>
-        </ScrollArea>
+    <div className="grid h-full min-h-0 grid-cols-1 overflow-hidden md:grid-cols-[16rem_1fr]">
+      <nav className="hidden min-h-0 overflow-y-auto border-r border-border md:block">
+        <ol className="flex flex-col gap-1 p-4 text-sm">
+          {book.chapters.map((c) => (
+            <li key={c.file}>
+              <a
+                href={hrefFor({ view: "book", slug: c.slug })}
+                className={cn(
+                  "block rounded-md px-2 py-1.5 hover:bg-accent",
+                  c.slug === chapter.slug && "bg-accent text-gero",
+                )}
+              >
+                {c.title}
+              </a>
+            </li>
+          ))}
+        </ol>
       </nav>
-      <ScrollArea className="h-full">
+      <div className="min-h-0 overflow-y-auto">
         <article className="mx-auto flex max-w-3xl flex-col gap-4 px-6 py-8">
           <ChapterBody chapter={chapter} book={book} onOpenGero={onOpenGero} />
           <ChapterPager book={book} chapter={chapter} />
         </article>
-      </ScrollArea>
+      </div>
     </div>
   );
 }
