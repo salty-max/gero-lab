@@ -74,7 +74,7 @@ describe("Engine", () => {
     expect(of("output").map((e) => e.text).join("")).toBe("HI");
   });
 
-  it("builds and runs a gero-lang program", async () => {
+  it("builds and runs a Gero program", async () => {
     const { engine, of } = harness();
     await engine.receive({ type: "init" });
     await engine.receive({

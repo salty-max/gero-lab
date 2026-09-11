@@ -25,7 +25,7 @@ describe("decodeBook", () => {
   test("rewrites in-book links to the hash router and specs to GitHub", () => {
     const slugs = new Set(["01-what-gero-is", "02-values-and-types"]);
     expect(rewriteHref("02-values-and-types.md", slugs)).toBe("#/book/02-values-and-types");
-    expect(rewriteHref("../gero-lang.md", slugs)).toBe(`${GERO_DOCS}/gero-lang.md`);
+    expect(rewriteHref("../lang.md", slugs)).toBe(`${GERO_DOCS}/lang.md`);
     expect(rewriteHref("../machine/README.md", slugs)).toBe(`${GERO_DOCS}/machine/README.md`);
     expect(rewriteHref("https://example.com/x", slugs)).toBe("https://example.com/x");
   });
