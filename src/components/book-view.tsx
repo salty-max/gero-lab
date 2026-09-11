@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { PlayIcon } from "lucide-react";
+import { Loader2Icon, PlayIcon } from "lucide-react";
 
 import {
   isOpenableGero,
@@ -11,15 +11,15 @@ import {
 import { parseMarkdown, type Block, type Inline } from "@/book/markdown";
 import { Button } from "@/components/ui/button";
 import { HighlightedCode } from "@/components/highlighted-code";
+import { useSnippetActions, type SnippetResult } from "@/hooks/use-snippet-actions";
 import { hrefFor } from "@/lib/route";
 import { cn } from "@/lib/utils";
 
 type BookViewProps = {
   slug: string;
-  onOpenSnippet: (code: string, lang: "gero" | "asm") => void;
 };
 
-export function BookView({ slug, onOpenSnippet }: BookViewProps) {
+export function BookView({ slug }: BookViewProps) {
   const [book, setBook] = useState<Book | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,7 +76,7 @@ export function BookView({ slug, onOpenSnippet }: BookViewProps) {
       </nav>
       <div className="min-h-0 overflow-y-auto">
         <article className="mx-auto flex max-w-3xl flex-col gap-4 px-6 py-8">
-          <ChapterBody chapter={chapter} book={book} onOpenSnippet={onOpenSnippet} />
+          <ChapterBody chapter={chapter} book={book} />
           <ChapterPager book={book} chapter={chapter} />
         </article>
       </div>
@@ -87,11 +87,9 @@ export function BookView({ slug, onOpenSnippet }: BookViewProps) {
 function ChapterBody({
   chapter,
   book,
-  onOpenSnippet,
 }: {
   chapter: Chapter;
   book: Book;
-  onOpenSnippet: (code: string, lang: "gero" | "asm") => void;
 }) {
   const slugs = useMemo(
     () => new Set(book.chapters.map((c) => c.slug).filter(Boolean)),
@@ -105,7 +103,6 @@ function ChapterBody({
           key={`${chapter.slug}:${String(i)}`}
           block={block}
           slugs={slugs}
-          onOpenSnippet={onOpenSnippet}
         />
       ))}
     </>
@@ -115,11 +112,9 @@ function ChapterBody({
 function BlockView({
   block,
   slugs,
-  onOpenSnippet,
 }: {
   block: Block;
   slugs: ReadonlySet<string>;
-  onOpenSnippet: (code: string, lang: "gero" | "asm") => void;
 }) {
   switch (block.type) {
     case "heading": {
@@ -158,7 +153,7 @@ function BlockView({
     case "hr":
       return <hr className="border-border" />;
     case "fence":
-      return <Fence block={block} onOpenSnippet={onOpenSnippet} />;
+      return <Fence block={block} />;
   }
 }
 
@@ -170,26 +165,48 @@ function fenceHighlightLang(lang: string): "gr" | "gas" | null {
 
 function Fence({
   block,
-  onOpenSnippet,
 }: {
   block: Extract<Block, { type: "fence" }>;
-  onOpenSnippet: (code: string, lang: "gero" | "asm") => void;
 }) {
+  const { runInPlace, openInLab, ready } = useSnippetActions();
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<SnippetResult | null>(null);
   const openLang: "gero" | "asm" | null =
     (block.lang === "gero" || block.lang === "asm") && isOpenableGero(block.code)
       ? block.lang
       : null;
   const colour = fenceHighlightLang(block.lang);
   const label = block.lang === "" ? "output" : block.lang;
+
+  const run = async () => {
+    if (!openLang || busy) return;
+    setBusy(true);
+    try {
+      setResult(await runInPlace(block.code, openLang));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="overflow-hidden rounded-md border border-border bg-card">
       <div className="flex items-center justify-between border-b border-border px-3 py-1.5 text-xs text-muted-foreground">
         <span>{label}</span>
         {openLang ? (
-          <Button size="sm" variant="ghost" onClick={() => onOpenSnippet(block.code, openLang)}>
-            <PlayIcon />
-            Open in lab
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button size="sm" variant="ghost" disabled={!ready || busy} onClick={() => void run()}>
+              {busy ? <Loader2Icon className="animate-spin" /> : <PlayIcon />}
+              Run
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={!ready || busy}
+              onClick={() => void openInLab(block.code, openLang)}
+            >
+              Open in lab
+            </Button>
+          </div>
         ) : null}
       </div>
       {colour ? (
@@ -199,7 +216,38 @@ function Fence({
           <code>{block.code}</code>
         </pre>
       )}
+      {result ? <SnippetOut result={result} /> : null}
     </div>
+  );
+}
+
+function SnippetOut({ result }: { result: SnippetResult }) {
+  const errors = result.diagnostics.filter((d) => d.severity === "error");
+  if (errors.length > 0) {
+    return (
+      <pre className="border-t border-border bg-destructive/10 p-3 text-sm leading-6 text-destructive">
+        {errors.map((d) => `${d.message}${d.code ? ` [${d.code}]` : ""}`).join("\n")}
+      </pre>
+    );
+  }
+  if (result.timedOut) {
+    return (
+      <p className="border-t border-border px-3 py-2 text-sm text-muted-foreground">
+        did not halt
+      </p>
+    );
+  }
+  if (result.fault) {
+    return (
+      <pre className="border-t border-border bg-destructive/10 p-3 text-sm text-destructive">
+        {result.fault}
+      </pre>
+    );
+  }
+  return (
+    <pre className="border-t border-border bg-muted/40 p-3 text-sm leading-6">
+      {result.output.length > 0 ? result.output : "(no output)"}
+    </pre>
   );
 }
 

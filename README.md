@@ -20,8 +20,8 @@ same holds for the samples — `public/samples.json` ships beside the
 module, drawn from gero's own `examples/`, so a starter program cannot
 drift from the corpus CI proves works. The Gero Book is the same shape:
 `public/book.json` is packed from gero's `docs/book/` and rendered at
-`#/book`. A ` ```gero ` block opens in the playground rather than
-being retyped.
+`#/book`. A ` ```gero ` block can be run in place, or opened in the
+playground.
 
 ## Layers
 
