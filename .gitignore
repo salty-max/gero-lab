@@ -8,6 +8,7 @@ dist/
 # a sample set that can drift from the corpus (gero-lab.md §9, §10).
 public/gero.wasm
 public/samples.json
+public/book.json
 public/tree-sitter-*
 
 # CI's checkout of the gero repository, for building the module.

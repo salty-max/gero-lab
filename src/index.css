@@ -160,6 +160,34 @@
   --ctp-overlay0: #6c7086;
 }
 
+/* Highlight tokens for book fences — same names the Monaco themes use,
+   from the published grammar's captures. Mocha in dark, Latte in light. */
+.tok-comment { color: #7c7f93; font-style: italic; }
+.tok-keyword-directive { color: #ea76cb; font-weight: 600; }
+.tok-keyword-mnemonic { color: #1e66f5; font-weight: 600; }
+.tok-variable-register { color: #179299; font-weight: 600; }
+.tok-number-hex { color: #fe640b; }
+.tok-cast-type { color: #40a02b; font-weight: 600; }
+.tok-property { color: #4c4f69; }
+.tok-type-label { color: #ea76cb; font-weight: 600; }
+.tok-identifier { color: #4c4f69; }
+.tok-operator { color: #dd7878; }
+.tok-delimiter { color: #7c7f93; }
+.tok-string { color: #40a02b; }
+
+.dark .tok-comment { color: #6c7086; }
+.dark .tok-keyword-directive { color: #f5c2e7; }
+.dark .tok-keyword-mnemonic { color: #89b4fa; }
+.dark .tok-variable-register { color: #94e2d5; }
+.dark .tok-number-hex { color: #fab387; }
+.dark .tok-cast-type { color: #a6e3a1; }
+.dark .tok-property { color: #f2cdcd; }
+.dark .tok-type-label { color: #f5e0dc; }
+.dark .tok-identifier { color: #cdd6f4; }
+.dark .tok-operator { color: #f5c2e7; }
+.dark .tok-delimiter { color: #89dceb; }
+.dark .tok-string { color: #a6e3a1; }
+
 @layer base {
   html {
     /* Reserve gutter to prevent scrollbar flash/layout shift when modals/toasts mount */
