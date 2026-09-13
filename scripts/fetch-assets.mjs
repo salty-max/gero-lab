@@ -90,9 +90,13 @@ async function main() {
       const url = releaseUrl(tag, a.name);
       const response = await fetch(url);
       if (!response.ok) {
-        // `books.json` is new; older tags carry the module without it.
-        if (a.name === "books.json") continue;
-        throw new Error(`${url} returned ${response.status}`);
+        // Every asset is required. Skipping a missing one produces a
+        // build that serves a lab with no VM or no books — a failure
+        // the person deploying cannot see and every visitor can.
+        throw new Error(
+          `${url} returned ${String(response.status)}. ` +
+            `A tag older than the asset does not carry it; use one that does.`,
+        );
       }
       await writeFile(join(publicDir, a.name), Buffer.from(await response.arrayBuffer()));
     }
