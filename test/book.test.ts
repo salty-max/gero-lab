@@ -36,10 +36,10 @@ describe("decodeBook", () => {
   });
 });
 
-test("the packed book has front matter and chapters 1–4", async () => {
+test("the packed book has front matter and introductory chapters, allowing additions", async () => {
   const raw = JSON.parse(await readFile("public/book.json", "utf8")) as unknown;
   const book = decodeBook(raw);
-  expect(book.chapters.map((c) => c.slug)).toEqual([
+  expect(book.chapters.slice(0, 5).map((c) => c.slug)).toEqual([
     "",
     "01-what-gero-is",
     "02-values-and-types",

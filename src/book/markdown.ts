@@ -66,8 +66,15 @@ export function parseMarkdown(source: string): Block[] {
       const items: Inline[][] = [];
       const bullet = ordered ? /^\d+\.\s+/ : /^[-*]\s+/;
       while (i < lines.length && bullet.test(lines[i] ?? "")) {
-        items.push(parseInline((lines[i] ?? "").replace(bullet, "")));
+        const item = [(lines[i] ?? "").replace(bullet, "")];
         i += 1;
+        // The chapters wrap descriptions beneath their list markers.
+        // Keep those lines in the item so numbering stays continuous.
+        while (i < lines.length && /^[ \t]+\S/.test(lines[i] ?? "")) {
+          item.push((lines[i] ?? "").trim());
+          i += 1;
+        }
+        items.push(parseInline(item.join(" ")));
       }
       blocks.push({ type: "list", ordered, items });
       continue;

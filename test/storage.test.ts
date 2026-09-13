@@ -100,18 +100,18 @@ describe("SRAM", () => {
 describe("SRAM through the module", () => {
   /** `save.gas` from the example corpus, trimmed to what this needs:
    *  the last `sram_banks` banks are battery-backed, so with one bank
-   *  declared, bank 0 is the SRAM bank and the window at `&C000`
+   *  declared, bank 0 is the SRAM bank and the window at `&BE00`
    *  writes into it. `int $21` asks the host to persist. */
   const SAVE_GAS = `sram_banks $01
 
 main:
   mov $00, mb
   mov 'S', r1
-  mov r1, &C000
+  mov r1, &BE00
   mov 'A', r1
-  mov r1, &C001
+  mov r1, &BE01
   mov 'V', r1
-  mov r1, &C002
+  mov r1, &BE02
   int $21
   hlt
 
@@ -140,7 +140,8 @@ bank $00
   }
 
   it("reads back what a program wrote to its banks", async () => {
-    const { sram } = await run(SAVE_GAS);
+    const { sram, events } = await run(SAVE_GAS);
+    expect(events.some((e) => e.type === "paused" && e.reason === "halt")).toBe(true);
     expect(sram.length).toBeGreaterThan(0);
     expect(String.fromCharCode(...sram.slice(0, 3))).toBe("SAV");
   });

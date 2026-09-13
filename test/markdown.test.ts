@@ -46,4 +46,37 @@ end
     expect(blocks).toHaveLength(1);
     expect(blocks[0]?.type).toBe("paragraph");
   });
+
+  test("wrapped list items keep their descriptions and inline marks", () => {
+    expect(parseMarkdown(`1. [First](first.md) — a
+   **wrapped** description.
+2. Second
+   with another line.
+
+After the list.
+
+- A bullet with
+  a continuation.
+- Another bullet.
+`)).toEqual([
+      {
+        type: "list", ordered: true, items: [
+          [
+            { type: "link", href: "first.md", children: [{ type: "text", value: "First" }] },
+            { type: "text", value: " — a " },
+            { type: "strong", children: [{ type: "text", value: "wrapped" }] },
+            { type: "text", value: " description." },
+          ],
+          [{ type: "text", value: "Second with another line." }],
+        ],
+      },
+      { type: "paragraph", children: [{ type: "text", value: "After the list." }] },
+      {
+        type: "list", ordered: false, items: [
+          [{ type: "text", value: "A bullet with a continuation." }],
+          [{ type: "text", value: "Another bullet." }],
+        ],
+      },
+    ]);
+  });
 });
