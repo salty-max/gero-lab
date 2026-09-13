@@ -58,6 +58,9 @@ export type ProgramApi = {
    *  starts from has nothing to build. */
   removeFile(name: string): void;
   setProgram(files: SourceFile[], entryName: string, lang: Lang): void;
+  /** Put `files` in the editor and build them, so the cockpit's
+   *  "no program loaded" overlay lifts on a successful image. */
+  loadProgram(files: SourceFile[], entryName: string, lang: Lang): Promise<ProgramBuild>;
 
   build(): Promise<ProgramBuild>;
   /** Diagnostics for the buffers as they stand, without building. */
@@ -190,50 +193,68 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /**
-   * Build the file set and load what comes out.
+   * Build `nextFiles` and load what comes out. Takes the files as
+   * arguments so a caller that just called `setProgram` is not racing
+   * the next render for the buffers the worker should see.
    *
    * The worker loads a successful build itself, so there is no separate
    * load step for the UI to forget — a build that left the VM holding
    * the previous image would run the wrong program.
    */
-  const build = useCallback(async (): Promise<ProgramBuild> => {
-    setBuilding(true);
-    try {
-      const result = await buildInWorker(files, entryName, lang);
-      const out: ProgramBuild = {
-        image: result.image ?? new Uint8Array(0),
-        diagnostics: result.diagnostics,
-        disassembly: result.disassembly,
-        disassemblyWithBytes: result.disassemblyWithBytes,
-        debug: result.debugJson ? parseDebugInfo(result.debugJson) : NO_DEBUG_INFO,
-      };
-      setLastBuild(out);
-      setDiagnostics(out.diagnostics);
-      // A build that produced nothing has to say so where the user is
-      // looking; the console carries the detail.
-      const errors = out.diagnostics.filter((d) => d.severity === "error");
-      if (out.image.length === 0) {
-        toast.error(
-          errors.length > 0
-            ? `${String(errors.length)} error${errors.length === 1 ? "" : "s"}: ${errors[0]!.message}`
-            : "the program did not build",
-        );
-      } else if (errors.length > 0) {
-        toast.warning(`built with ${String(errors.length)} reported`);
+  const buildFiles = useCallback(
+    async (nextFiles: SourceFile[], entry: string, nextLang: Lang): Promise<ProgramBuild> => {
+      setBuilding(true);
+      try {
+        const result = await buildInWorker(nextFiles, entry, nextLang);
+        const out: ProgramBuild = {
+          image: result.image ?? new Uint8Array(0),
+          diagnostics: result.diagnostics,
+          disassembly: result.disassembly,
+          disassemblyWithBytes: result.disassemblyWithBytes,
+          debug: result.debugJson ? parseDebugInfo(result.debugJson) : NO_DEBUG_INFO,
+        };
+        setLastBuild(out);
+        setDiagnostics(out.diagnostics);
+        // A build that produced nothing has to say so where the user is
+        // looking; the console carries the detail.
+        const errors = out.diagnostics.filter((d) => d.severity === "error");
+        if (out.image.length === 0) {
+          toast.error(
+            errors.length > 0
+              ? `${String(errors.length)} error${errors.length === 1 ? "" : "s"}: ${errors[0]!.message}`
+              : "the program did not build",
+          );
+        } else if (errors.length > 0) {
+          toast.warning(`built with ${String(errors.length)} reported`);
+        }
+        // The first line the disassembler prints with an entry marker is
+        // where this image begins; the module put it there.
+        const marked = /^([0-9A-Fa-f]{4}):.*; entry point/m.exec(out.disassembly);
+        setEntryAddress(marked?.[1] ? Number.parseInt(marked[1], 16) : null);
+        if (out.image.length > 0) {
+          const saved = persistence.loadSram(entry);
+          if (saved) vm.writeSram(saved);
+        }
+        return out;
+      } finally {
+        setBuilding(false);
       }
-      // The first line the disassembler prints with an entry marker is
-      // where this image begins; the module put it there.
-      const marked = /^([0-9A-Fa-f]{4}):.*; entry point/m.exec(out.disassembly);
-      setEntryAddress(marked?.[1] ? Number.parseInt(marked[1], 16) : null);
-      if (out.image.length > 0) {
-        const saved = persistence.loadSram(entryName);
-        if (saved) vm.writeSram(saved);
-      }
-      return out;
-    } finally {
-      setBuilding(false);
-    }
-  }, [buildInWorker, files, entryName, lang, persistence, vm]);
+    },
+    [buildInWorker, persistence, vm],
+  );
+
+  const build = useCallback(
+    () => buildFiles(files, entryName, lang),
+    [buildFiles, files, entryName, lang],
+  );
+
+  const loadProgram = useCallback(
+    async (next: SourceFile[], entry: string, nextLang: Lang): Promise<ProgramBuild> => {
+      setProgram(next, entry, nextLang);
+      return buildFiles(next, entry, nextLang);
+    },
+    [setProgram, buildFiles],
+  );
 
   const { check: checkInWorker, format: formatInWorker, setReg } = vm;
 
@@ -270,6 +291,7 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
       addFile,
       removeFile,
       setProgram,
+      loadProgram,
       build,
       check,
       diagnostics,
@@ -293,6 +315,7 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
       addFile,
       removeFile,
       setProgram,
+      loadProgram,
       build,
       check,
       diagnostics,

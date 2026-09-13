@@ -2,7 +2,7 @@ import { HeartIcon } from 'lucide-react'
 
 export function Footer() {
   return (
-    <footer className="flex items-center justify-between px-6 py-3 text-xs text-muted-foreground bg-background">
+    <footer className="flex items-center justify-between gap-3 px-4 py-3 text-xs text-muted-foreground bg-background sm:px-6">
       <span>
         VM: <span className="text-gero">Gero</span> v0.1
       </span>

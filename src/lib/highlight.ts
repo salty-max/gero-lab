@@ -173,3 +173,34 @@ export async function highlight(
   }
   return lines;
 }
+
+/** One coloured slice of a line, for anything that is not Monaco. */
+export interface PaintedSpan {
+  text: string;
+  token: string;
+}
+
+/**
+ * Apply a line's highlight runs to its source. A missing run list
+ * leaves the line uncoloured — §4.3's fallback, not a second grammar.
+ */
+export function paintLine(line: string, tokens: readonly LineToken[]): PaintedSpan[] {
+  if (tokens.length === 0) return [{ text: line, token: "" }];
+  const spans: PaintedSpan[] = [];
+  let col = 0;
+  for (let i = 0; i < tokens.length; i++) {
+    const start = tokens[i]!.startIndex;
+    const end = tokens[i + 1]?.startIndex ?? line.length;
+    if (start > col) spans.push({ text: line.slice(col, start), token: "" });
+    if (end > start) spans.push({ text: line.slice(start, end), token: tokens[i]!.scopes });
+    col = Math.max(col, end);
+  }
+  if (col < line.length) spans.push({ text: line.slice(col), token: "" });
+  return spans;
+}
+
+/** CSS class for a highlight token (`keyword.mnemonic` → `tok-keyword-mnemonic`). */
+export function tokenClass(token: string): string | undefined {
+  if (token === "") return undefined;
+  return `tok-${token.replaceAll(".", "-")}`;
+}

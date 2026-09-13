@@ -34,7 +34,7 @@ export interface SourceFile {
  *  `gero check --format=json` writes, so the wording, code and span are
  *  identical in a terminal and here (§5).
  *
- *  `end_line` / `end_col` are present for gero-lang, whose diagnostics
+ *  `end_line` / `end_col` are present for Gero, whose diagnostics
  *  carry a span; asm reports a point, and a marker for one covers the
  *  rest of the line. */
 export interface Diagnostic {
