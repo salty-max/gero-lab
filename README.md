@@ -185,6 +185,25 @@ gero checkout's `zig-out` by default — the working-tree module, which is
 what you want while developing against an unreleased toolchain.
 `GERO_ROOT=<dir>` points at another checkout, `GERO_DIST=<dir>` at a
 directory holding both assets, and `GERO_TAG=<tag>` at a gero release.
+A missing asset fails the fetch rather than being skipped: a build that
+quietly ships without the module serves a lab with no VM, which the
+person deploying cannot see and every visitor can.
+
+## Deploying
+
+`vercel.json` builds with `npm run wasm && npm run build`, so a deploy
+fetches the toolchain rather than carrying one. There is no gero
+checkout on a build machine, which leaves the release path: set
+`GERO_TAG` in the project's environment variables to the gero release
+the deploy should pin, and the assets come from it.
+
+Pinning a tag rather than tracking `main` is the point. The lab and the
+toolchain move together — a `.gx` the module cannot parse is a broken
+playground — so the version in production is a decision somebody makes,
+not whatever happened to land that morning.
+
+Vite's hashed output under `/assets` is served immutable. The fetched
+assets are not hashed and change between deploys, so they revalidate.
 
 Lint is [oxlint](https://oxc.rs), configured in `.oxlintrc.json`. It
 carries no `typescript` peer of its own, which is what lets the project
