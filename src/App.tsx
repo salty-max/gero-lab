@@ -1,4 +1,4 @@
-import { BookView } from "./components/book-view";
+import { BookView, LibraryView } from "./components/book-view";
 import { Cockpit } from "./components/cockpit";
 import { Footer } from "./components/footer";
 import { Header } from "./components/header";
@@ -23,7 +23,13 @@ function AppShell() {
   return (
     <div className="grid h-screen grid-rows-[68px_minmax(0,1fr)_40px] gap-0">
       <Header route={route} />
-      {route.view === "book" ? <BookView slug={route.slug} /> : <Cockpit />}
+      {route.view === "book" ? (
+        <BookView book={route.book} slug={route.slug} />
+      ) : route.view === "library" ? (
+        <LibraryView />
+      ) : (
+        <Cockpit />
+      )}
       <Footer />
     </div>
   );

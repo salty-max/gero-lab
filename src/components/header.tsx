@@ -11,8 +11,8 @@ import { Button } from "./ui/button";
 
 export function Header({ route }: { route: Route }) {
   return (
-    <header className="flex items-center justify-between bg-background px-6 py-4">
-      <div className="flex items-center gap-6">
+    <header className="flex items-center justify-between gap-3 bg-background px-4 py-4 sm:px-6">
+      <div className="flex items-center gap-3 sm:gap-6">
         <a
           href={hrefFor({ view: "lab" })}
           className="flex items-center gap-2"
@@ -22,7 +22,7 @@ export function Header({ route }: { route: Route }) {
             className="inline-block h-6 w-auto text-gero [&>svg]:h-full [&>svg]:w-auto"
             dangerouslySetInnerHTML={{ __html: GeroLogoRaw }}
           />
-          <h1 className="text-2xl">
+          <h1 className="hidden text-2xl sm:block">
             <span className="font-bold text-gero">Gero</span>
             <span>Lab</span>
           </h1>
@@ -38,13 +38,13 @@ export function Header({ route }: { route: Route }) {
             Lab
           </a>
           <a
-            href={hrefFor({ view: "book", slug: "" })}
+            href={hrefFor({ view: "library" })}
             className={cn(
               "rounded-md px-2 py-1 hover:bg-accent",
-              route.view === "book" && "text-gero",
+              (route.view === "book" || route.view === "library") && "text-gero",
             )}
           >
-            Book
+            Books
           </a>
         </nav>
       </div>
@@ -57,7 +57,7 @@ export function Header({ route }: { route: Route }) {
         <a href="https://github.com/salty-max/gero-lab" target="_blank" rel="noreferrer">
           <Button variant="outline">
             <CodeXmlIcon className="h-4 w-4" />
-            Source Code
+            <span className="hidden sm:inline">Source Code</span>
           </Button>
         </a>
       </nav>

@@ -28,7 +28,7 @@ const publicDir = resolve(root, "public");
 const ASSETS = [
   { name: "gero.wasm", built: "zig-out/bin/gero.wasm" },
   { name: "samples.json", built: "zig-out/samples/samples.json" },
-  { name: "book.json", built: "zig-out/book/book.json" },
+  { name: "books.json", built: "zig-out/book/books.json" },
 ];
 
 /**
@@ -90,8 +90,8 @@ async function main() {
       const url = releaseUrl(tag, a.name);
       const response = await fetch(url);
       if (!response.ok) {
-        // `book.json` is new; older tags carry the module without it.
-        if (a.name === "book.json") continue;
+        // `books.json` is new; older tags carry the module without it.
+        if (a.name === "books.json") continue;
         throw new Error(`${url} returned ${response.status}`);
       }
       await writeFile(join(publicDir, a.name), Buffer.from(await response.arrayBuffer()));
@@ -105,8 +105,8 @@ async function main() {
       const built = join(checkout, a.built);
       if (existsSync(built)) {
         await copyFile(built, join(publicDir, a.name));
-      } else if (a.name === "book.json") {
-        await packBook(join(checkout, "docs/book"), join(publicDir, "book.json"));
+      } else if (a.name === "books.json") {
+        await packBooks(checkout, join(publicDir, "books.json"));
       } else {
         throw new Error(`missing ${built}`);
       }
@@ -123,29 +123,42 @@ async function main() {
 
 /** Pack `docs/book/*.md` the same way gero's `emit-book.mjs` does, so a
  *  checkout whose wasm step predates that script still feeds the lab. */
-async function packBook(bookDir, dest) {
-  if (!existsSync(bookDir)) {
-    throw new Error(`no book at ${bookDir}`);
+/** The books, packed the way gero's `emit-book.mjs` packs them, for a
+ *  checkout that has not run `zig build wasm` yet. The two have to
+ *  agree: a reader cannot tell which one produced what it is reading. */
+const BOOKS = [
+  { id: "book", dir: "docs/book", title: "The Gero Book" },
+  { id: "machine", dir: "docs/machine", title: "The Gero Machine" },
+];
+
+async function packBooks(checkout, dest) {
+  const books = [];
+  for (const { id, dir, title } of BOOKS) {
+    const bookDir = join(checkout, dir);
+    if (!existsSync(bookDir)) {
+      throw new Error(`no book at ${bookDir}`);
+    }
+    const files = (await readdir(bookDir))
+      .filter((n) => n.endsWith(".md"))
+      .toSorted((a, b) => {
+        if (a === "README.md") return -1;
+        if (b === "README.md") return 1;
+        return a.localeCompare(b);
+      });
+    const chapters = [];
+    for (const name of files) {
+      const body = await readFile(join(bookDir, name), "utf8");
+      const heading = body.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? basename(name, ".md");
+      chapters.push({
+        slug: name === "README.md" ? "" : basename(name, ".md"),
+        title: heading,
+        file: name,
+        body,
+      });
+    }
+    books.push({ id, title, chapters });
   }
-  const files = (await readdir(bookDir))
-    .filter((n) => n.endsWith(".md"))
-    .toSorted((a, b) => {
-      if (a === "README.md") return -1;
-      if (b === "README.md") return 1;
-      return a.localeCompare(b);
-    });
-  const chapters = [];
-  for (const name of files) {
-    const body = await readFile(join(bookDir, name), "utf8");
-    const heading = body.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? basename(name, ".md");
-    chapters.push({
-      slug: name === "README.md" ? "" : basename(name, ".md"),
-      title: heading,
-      file: name,
-      body,
-    });
-  }
-  await writeFile(dest, JSON.stringify({ version: 1, title: "The Gero Book", chapters }, null, 2));
+  await writeFile(dest, JSON.stringify({ version: 2, books }, null, 2));
 }
 
 function report(how) {

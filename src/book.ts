@@ -1,12 +1,13 @@
 /**
- * The Gero Book (gero-lab.md §10).
+ * The books (gero-lab.md §10).
  *
- * Packed from gero's `docs/book/` and published beside the module as
- * `book.json`, so a chapter cannot drift from the text CI compiles.
- * Fetched, never vendored — the same rule the samples follow.
+ * Packed from gero's `docs/book/` and `docs/machine/` and published
+ * beside the module as `books.json`, so a chapter cannot drift from
+ * the text CI compiles. Fetched, never vendored — the same rule the
+ * samples follow.
  */
 
-export const BOOK_MANIFEST_VERSION = 1;
+export const BOOKS_MANIFEST_VERSION = 2;
 
 export interface Chapter {
   slug: string;
@@ -16,6 +17,9 @@ export interface Chapter {
 }
 
 export interface Book {
+  /** What a reader's URL carries, and what a cross-book link
+   *  resolves against. */
+  id: string;
   title: string;
   chapters: Chapter[];
 }
@@ -27,59 +31,97 @@ export class BookManifestError extends Error {
   }
 }
 
-/** Load the book from `public/book.json`. */
-export async function loadBook(url = "/book.json"): Promise<Book> {
+/** Load every book from `public/books.json`, in reading order. */
+export async function loadBooks(url = "/books.json"): Promise<Book[]> {
   const response = await fetch(url);
   if (!response.ok) {
     throw new BookManifestError(
       `could not fetch ${url} (${String(response.status)}) — run \`npm run wasm\` to place it in public/`,
     );
   }
-  return decodeBook(await response.json());
+  return decodeBooks(await response.json());
 }
 
-export function decodeBook(body: unknown): Book {
-  const manifest = body as { version?: number; title?: string; chapters?: Chapter[] };
-  if (manifest.version !== BOOK_MANIFEST_VERSION) {
+export function decodeBooks(body: unknown): Book[] {
+  const manifest = body as { version?: number; books?: Book[] };
+  if (manifest.version !== BOOKS_MANIFEST_VERSION) {
     throw new BookManifestError(
-      `book.json is version ${String(manifest.version)}, this build reads ${String(BOOK_MANIFEST_VERSION)}`,
+      `books.json is version ${String(manifest.version)}, this build reads ${String(BOOKS_MANIFEST_VERSION)}`,
     );
   }
-  if (typeof manifest.title !== "string" || !Array.isArray(manifest.chapters)) {
-    throw new BookManifestError("book.json does not carry a title and chapters");
+  if (!Array.isArray(manifest.books)) {
+    throw new BookManifestError("books.json does not carry a books array");
   }
-  for (const ch of manifest.chapters) {
-    if (
-      typeof ch.slug !== "string" ||
-      typeof ch.title !== "string" ||
-      typeof ch.file !== "string" ||
-      typeof ch.body !== "string"
-    ) {
-      throw new BookManifestError("book.json has a chapter with a missing field");
+  for (const book of manifest.books) {
+    if (typeof book.id !== "string" || typeof book.title !== "string" || !Array.isArray(book.chapters)) {
+      throw new BookManifestError("books.json has a book with a missing field");
+    }
+    for (const ch of book.chapters) {
+      if (
+        typeof ch.slug !== "string" ||
+        typeof ch.title !== "string" ||
+        typeof ch.file !== "string" ||
+        typeof ch.body !== "string"
+      ) {
+        throw new BookManifestError(`books.json has a chapter with a missing field in \`${book.id}\``);
+      }
     }
   }
-  return { title: manifest.title, chapters: manifest.chapters };
+  return manifest.books;
 }
 
-/** Spec files the book links with `../foo.md` — those stay in gero. */
+/** The first paragraph of a book's front matter, for the library card. */
+export function blurbOf(book: Book): string {
+  const front = book.chapters.find((c) => c.slug === "");
+  if (!front) return "";
+  const body = front.body.replace(/^#\s+.+$/m, "").trimStart();
+  const para = body.split(/\n\s*\n/)[0] ?? "";
+  return para.replace(/\s*\n\s*/g, " ").trim();
+}
+
+/** Spec files the books link with `../foo.md` — those stay in gero. */
 export const GERO_DOCS = "https://github.com/salty-max/gero/blob/main/docs";
 
-/** Rewrite a markdown href for the lab: in-book chapters stay in the
- *  reader, everything else under `docs/` goes to the spec on GitHub. */
-export function rewriteHref(href: string, chapterSlugs: ReadonlySet<string>): string {
+/**
+ * Rewrite a markdown href for the lab.
+ *
+ * A chapter of the book being read stays in the reader. So does a link
+ * into the *other* book: the two cross-reference each other in their
+ * front matter, and sending a reader to the repository to be told these
+ * are companion volumes rather undercuts the point. Everything else
+ * under `docs/` is a specification, which lives in gero.
+ */
+export function rewriteHref(href: string, current: Book, books: readonly Book[]): string {
   if (/^https?:\/\//.test(href)) return href;
-  const path = href.split("#")[0] ?? href;
+  const [path = href, hash] = href.split("#");
+  const suffix = hash ? `#${hash}` : "";
+
+  // `../<book>/<file>.md` — the other book, when that directory is one.
+  const other = /^\.\.\/([^/]+)\/([^/]+)\.md$/.exec(path);
+  if (other) {
+    // A book's directory under `docs/` is its id.
+    const book = books.find((b) => b.id === other[1]);
+    if (book) {
+      const slug = other[2] === "README" ? "" : other[2]!;
+      return chapterHref(book.id, slug) + suffix;
+    }
+  }
+
   const file = path.split("/").pop() ?? path;
   const slug = file.replace(/\.md$/, "");
-  // Front matter and chapter files live beside each other. A `../`
-  // link is a spec in the gero repo, including the other book's README.
-  if (!path.startsWith("../") && (file === "README.md" || chapterSlugs.has(slug))) {
-    return slug === "README" || slug === "" ? "#/book" : `#/book/${slug}`;
+  if (!path.startsWith("../") && (file === "README.md" || current.chapters.some((c) => c.slug === slug))) {
+    return chapterHref(current.id, slug === "README" ? "" : slug) + suffix;
   }
   if (path.startsWith("../")) {
-    return `${GERO_DOCS}/${path.slice(3)}`;
+    return `${GERO_DOCS}/${path.slice(3)}${suffix}`;
   }
   return href;
+}
+
+function chapterHref(book: string, slug: string): string {
+  return slug === ""
+    ? `#/book/${encodeURIComponent(book)}`
+    : `#/book/${encodeURIComponent(book)}/${encodeURIComponent(slug)}`;
 }
 
 /** A ```gero block the playground can open: not a `-- fragment`. */
