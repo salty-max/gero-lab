@@ -53,6 +53,11 @@ const snapshotOf = (regs: Registers): Snapshot => ({
 
 export function useVMService() {
   const [ready, setReady] = useState(false);
+  /** The toolchain version the module reports on connect. The lab
+   *  never has a version of its own to show: what matters is which
+   *  gero is answering, and that is whatever `gero.wasm` was built
+   *  from. */
+  const [vmVersion, setVmVersion] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [breakpointList, setBreakpointList] = useState<number[]>([]);
@@ -167,7 +172,8 @@ export function useVMService() {
 
     engine
       .connect()
-      .then(() => {
+      .then((version) => {
+        setVmVersion(version);
         setReady(true);
         emit({ t: "ready" });
       })
@@ -427,6 +433,7 @@ export function useVMService() {
 
   return {
     ready,
+    vmVersion,
     running,
     snap,
     breakpoints: breakpointList,
