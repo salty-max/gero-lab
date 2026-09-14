@@ -13,3 +13,7 @@ public/tree-sitter-*
 
 # CI's checkout of the gero repository, for building the module.
 .gero/
+
+# Vercel's project link and the secrets it pulls for local builds.
+.vercel
+.env*
