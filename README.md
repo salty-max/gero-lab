@@ -1,9 +1,10 @@
 # gero-lab
 
 Browser playground for the [Gero VM](https://github.com/salty-max/gero).
-The application half of
-[`docs/gero-lab.md`](https://github.com/salty-max/gero/blob/main/docs/gero-lab.md);
-the wasm module it drives lives in the gero repository.
+Specified in [`docs/gero-lab.md`](./docs/gero-lab.md); the module it
+drives is specified by
+[`wasm.md`](https://github.com/salty-max/gero/blob/main/docs/wasm.md)
+in the gero repository, and neither file restates the other.
 
 ## The one rule
 
